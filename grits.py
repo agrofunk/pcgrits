@@ -44,13 +44,13 @@ def zscore_dataset(ds):
         '''
             zscore calculation
         '''
-        mean = da.mean()
-        std = da.std()
+        mean = da.mean(skipna=True)
+        std = da.std(skipna=True)
         zscore = (da - mean) / std
         return zscore
     
     # firstly turn the dataset into monthly data
-    grouped_ds = ds.groupby('time.month')
+    grouped_ds = ds.groupby('time.month').mean()
     
     # then, calculate zscore using the predefined function   
     zscore = grouped_ds.apply(calculate_zscore) 

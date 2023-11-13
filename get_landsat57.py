@@ -1,15 +1,39 @@
 
-#
+#%%
 print('CHECK THIS OUT AND MAKE IT WORK FOR ME \n ')
 print('https://github.com/flowers-huang/cs325b-wildfire/tree/665fdff830de37e84f717af8797996d04215b492') 
 
+# pip install odc-ui rasterstats
+import sys
+import subprocess
+import pkg_resources
 
+required = {'rasterstats','odc-ui'}
+installed = {pkg.key for pkg in pkg_resources.working_set}
+missing = required - installed
 
-#%%
-# LOAD PACKAGES
+if missing:
+    python = sys.executable
+    subprocess.check_call([python, '-m', 'pip', 'install', *missing], stdout=subprocess.DEVNULL)
+
+# load grits and DEA
+sys.path.append('/home/jovyan/PlanetaryComputerExamples/CODE/pcgrits/')
+from grits import humanbytes, get_field, get_lims, get_mms, xr_rasterize, calculate_indices, zscore_dataset
+
+# from DEA
+sys.path.append('/home/jovyan/PlanetaryComputerExamples/CODE/pcgrits/deafrica_tools/')
+from plotting import display_map, rgb, map_shapefile
+
+# LOAD general packages
+
+import rioxarray as rxr
+import rasterio as rio
+
+from xrspatial import zonal_stats
 import numpy as np
 import xarray as xr
 import pylab as plt
+import pandas as pd
 
 import rasterio.features
 import stackstac
@@ -23,15 +47,6 @@ import geopandas as gpd
 import rioxarray
 
 from pyproj import Proj, transform
-
-
-import sys
-sys.path.append('/home/jovyan/PlanetaryComputerExamples/CODE/grits')
-from grits import humanbytes, get_field, get_lims, get_mms, xr_rasterize, calculate_indices
-
-# from DEA
-sys.path.append('/home/jovyan/PlanetaryComputerExamples/CODE/grits/deafrica_tools/')
-from plotting import display_map, rgb, map_shapefile
 
 
 #%%
@@ -53,7 +68,7 @@ print(cluster.dashboard_link)
 # print(bbox)
 
 
-# para um grupo dentro de uma farm
+#%% para um grupo dentro de uma farm
 path = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
 
 layer = 'piquetes_tid'
@@ -75,8 +90,9 @@ field.plot(column='TID')
 
 
 #%%
+%%time
 # RUN THE SEARCH for Landsat 8 and 9 
-datetime="2013-03-10/2021-10-30" # tentar pegar 2022 inteiro, tem erro de imagem faltando e travando os calculos
+datetime="1985-01-01/2013-05-03" # tentar pegar 2022 inteiro, tem erro de imagem faltando e travando os calculos
 print(datetime)
 
 stac = pystac_client.Client.open(
@@ -86,8 +102,8 @@ stac = pystac_client.Client.open(
 
 # only Landsat 8 and 9
 query_params = {
-    "eo:cloud_cover": {"lt": 20},
-    "platform": {"in": ["landsat-8", "landsat-9"]},
+    "eo:cloud_cover": {"lt": 30},
+    "platform": {"in": ["landsat-5", "landsat-7"]},
             }
 
 # Aqui definimos o intervalo de datas onde faremos a procura
@@ -97,16 +113,18 @@ search = stac.search(
     collections='landsat-c2-l2',
     query=query_params, # e aqui alteramos o limite máximo de nuvens 
 )
+# XXX maybe the sign will help
+items = planetary_computer.sign(search)
+print('COM SIGN')
 
 # o resultado da procura está guardado aqui no 'items'
 items = search.item_collection()
-print(f'found {len(items)} items \n first: {items[-1]} \n last: {items[0]}')
+print(f'\n found {len(items)} items \n first: {items[-1]} \n last: {items[0]} \n')
 print(items[0].assets.keys())
-#%%
 
 #%%
 # CREATE STACK
-assets = ['blue','green','red','nir08','lwir11','swir16','qa']
+assets = ['blue','green','red','nir08','lwir','swir16','qa']
 
 data = (
     stackstac.stack(
@@ -120,6 +138,9 @@ data = (
 )
 data = data.rename({'x': 'longitude','y': 'latitude'})
 data
+#%%
+%%time
+data.compute()
 #data
 
 #%%
@@ -129,19 +150,54 @@ ds = data.to_dataset(dim='band')
 #ds
 # %%
 # GET LST
-if 'lwir11' in assets:
-    print('Land Surface Temperature requested. \n -> Converting to Celcius')
+lst = False
+if lst:
+    if 'lwir' in assets:
+        print('Land Surface Temperature requested. \n -> Converting to Celcius')
 
-    # get lwir11 band info
-    band_info = items[0].assets["lwir11"].extra_fields["raster:bands"][0]
-    print(band_info)
+        # get lwir11 band info
+        band_info = items[0].assets["lwir"].extra_fields["raster:bands"][0]
+        print(band_info)
 
-    ds['lwir11'] = ds['lwir11'].astype(float)
-    ds['lwir11'] *=band_info['scale']
-    ds['lwir11'] +=band_info['offset']
-    ds['lwir11'] -= 273.15
-    lst = ds['lwir11'].copy()
-    ds = ds.drop(['lwir11'])
+        ds['lwir'] = ds['lwir'].astype(float)
+        ds['lwir'] *=band_info['scale']
+        ds['lwir'] +=band_info['offset']
+        ds['lwir'] -= 273.15
+        lst = ds['lwir'].copy()
+        ds = ds.drop(['lwir'])
+
+        #%%
+        # exploring LST
+        zlst = zscore_dataset(lst)
+
+        mzlst = zlst.resample(time='M').median(skipna=True)
+
+        mzlst = xr.where(mzlst > 3.5, np.nan, mzlst)
+        mzlst = xr.where(mzlst < -3.5, np.nan,mzlst)
+
+    # print(np.nanquantile(mzlst,[0.01,0.1,0.25,.5,.75,.9,.95,.99]))
+
+#%%
+# XXX SALVAR NETCDF - MISSAO
+# not quite there yet XXX 
+'''
+    position is ok, maybe astype float32 nos values...
+
+    ALSO CHECK XXX
+        01_get_MODIS_temperature
+
+'''
+drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
+         'landsat:collection_number','landsat:wrs_type','instruments']
+# mzlst = mzlst.to_dataset()
+# mzlst = mzlst['lwir11'].drop_vars(['landsat:correction','landsat:wrs_path','landsat:wrs_row',
+#                          'landsat:collection_number','landsat:wrs_type','instruments'])
+
+
+# mzlst = mzlst.rio.write_crs('4326')
+# mzlstr = mzlst.rio.reproject('EPSG:4326')
+
+# mzlstr.to_netcdf('/home/jovyan/PlanetaryComputerExamples/myout_nc/mzlstr.nc', mode='w', engine='netcdf4')
 
 
 #%%
@@ -209,7 +265,7 @@ if timeslice:
     
 if not timeslice:
     #zscores_ = zscores.copy()
-    step = 1
+    step = 20
 
 
 for t in range(0, len(ds.time),step):
@@ -253,4 +309,51 @@ for t in range(0, len(ds.time),step):
     fig.tight_layout();   
     plt.show();plt.close()
 # %%
+%%time
+column = 'TID'
+fm = xr_rasterize(field,data,attribute_col=column,verbose=True)
+fm = fm.chunk(256)
+fm.astype('uint8')
+# fm_f64 = fm.astype('float64')
+# fm_u8 = fm.astype('uint8')
 
+fm.plot()
+
+# %%
+%%time
+
+tozip = []
+
+nameout = 'landsat57_uniguiri_'
+verbose = False
+for iv in indices:
+
+    # get stats for the first dataframe
+    data_ = ds[iv].sel(time=ds[iv].time.values[0]).squeeze()
+    print('computing stats for the first date')
+    outst = zonal_stats(zones=fm, values=data_).compute()
+    outst['date'] = str(ds[iv].time.values[0])
+    data_.close()
+
+    # and through the loop
+    for t in data.time.values[1:]:
+        data_ = ds[iv].sel(time=t).squeeze()
+        if verbose: print(f'computing stats for {t}')
+        
+        outst1 = zonal_stats(zones=fm, values=data_).compute()
+        outst1['date'] = str(t)
+        outst = pd.concat([outst,outst1])
+        data_.close()
+        del outst1
+    tozip.append(f'/home/jovyan/PlanetaryComputerExamples/myout_csv/grasspace/{nameout}_{iv}.csv')
+    outst.to_csv(f'/home/jovyan/PlanetaryComputerExamples/myout_csv/grasspace/{nameout}_{iv}.csv')
+    print(f'{nameout}_{iv}.csv SAVED \n \n')
+    del outst
+# %%
+import zipfile
+
+with zipfile.ZipFile(f'/home/jovyan/PlanetaryComputerExamples/myout_csv/grasspace/{nameout}.zip', 'w') as zipMe:        
+    for file in tozip:
+        zipMe.write(file, compress_type=zipfile.ZIP_DEFLATED)
+    print(f'../myout_csv/grasspace/{nameout}.zip SAVED')
+# %%
