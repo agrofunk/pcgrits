@@ -15,6 +15,8 @@ missing = required - installed
 if missing:
     python = sys.executable
     subprocess.check_call([python, '-m', 'pip', 'install', *missing], stdout=subprocess.DEVNULL)
+else:
+    print(f'Required packages {required} already installed.')
 
 # load grits and DEA
 sys.path.append('/home/jovyan/PlanetaryComputerExamples/CODE/pcgrits/')
@@ -58,34 +60,46 @@ client = cluster.get_client()
 cluster.adapt(minimum=4, maximum=24)
 print(cluster.dashboard_link)
 
+#%% PROVISIONAL REGION OF INTEREST PICKER
+path = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+savenc = '/home/jovyan/PlanetaryComputerExamples/myout_nc/'
+# for this examples, choose between Iacanga and Uniguiri
+iacanga = False
+if iacanga:
+    name = 'iacangaV1'
+
+uniguiri = False
+if uniguiri:
+    full = True
+    name = 'uniguiri_full'
+
+
+#%%
+name = 'embrapa'
+field = gpd.read_file(path + 'embrapa_sannca.gpkg', driver='GPKG')
+bbox, lat_range, lon_range = get_lims(field)
+field.plot()
+
 #%%
 # GET FARM and BBOX
-# path = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
-# field = gpd.read_file( path + 'fazenda_uniguiri.gpkg')
-# field.plot()
-# fieldgeo = field.geometry.to_dict()[0]
-# bbox = rasterio.features.bounds(fieldgeo)
-# print(bbox)
+if uniguiri:
+    layer = 'piquetes_tid'
+    column = 'Re'
 
+    field = gpd.read_file( path + 'fazenda_uniguiri.gpkg' , layer=layer)
+    
+    # if not going for the full farm, pick a region
+    if not full:
+        val = 80000
+        field = field[field[column] == val]
 
-#%% para um grupo dentro de uma farm
-path = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+        # FURTHER REDUCING AREA FOR TESTS
+        field = field[field['R'] == 'R8_']
 
-layer = 'piquetes_tid'
-column = 'Re'
-val = 80000
+    bbox, lat_range, lon_range = get_lims(field)
 
-field = gpd.read_file( path + 'fazenda_uniguiri.gpkg' , layer=layer)
-field = field[field[column] == val]
-
-# FURTHER REDUCING AREA FOR TESTS
-field = field[field['R'] == 'R8_']
-
-
-bbox, lat_range, lon_range = get_lims(field)
-
-print(field.head())
-field.plot(column='TID')
+    print(field.head())
+    field.plot(column='TID')
 
 
 
@@ -104,6 +118,8 @@ stac = pystac_client.Client.open(
 query_params = {
     "eo:cloud_cover": {"lt": 30},
     "platform": {"in": ["landsat-5", "landsat-7"]},
+    "landsat:collection_category": { "in": "T1"}
+
             }
 
 # Aqui definimos o intervalo de datas onde faremos a procura
@@ -138,7 +154,9 @@ data = (
 )
 data = data.rename({'x': 'longitude','y': 'latitude'})
 data
-#%%
+#%% 
+# para uniguiri full 1985-2013 levou 25"
+# mas nao precisa
 %%time
 data.compute()
 #data
@@ -147,10 +165,15 @@ data.compute()
 # CONVERT TO DATASET
 ds_ = data.to_dataset(dim='band') #TO KEEP
 ds = data.to_dataset(dim='band') 
-#ds
 # %%
+%%time
 # GET LST
-lst = False
+'''
+    testando 
+LST DEVERIA SER 100 M, talvez vale carregar soh LWIR
+'''
+
+lst = True
 if lst:
     if 'lwir' in assets:
         print('Land Surface Temperature requested. \n -> Converting to Celcius')
@@ -164,17 +187,28 @@ if lst:
         ds['lwir'] +=band_info['offset']
         ds['lwir'] -= 273.15
         lst = ds['lwir'].copy()
-        ds = ds.drop(['lwir'])
+        #lst = ds.drop(['lwir'])
 
-        #%%
+        drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
+         'landsat:collection_number','landsat:wrs_type','instruments']
+
+
+        lst = lst.drop_vars(drops)
+        lst = lst.rolling(time=4).mean(skipna=True)
+        
         # exploring LST
         zlst = zscore_dataset(lst)
+        zlst = xr.where(zlst > 3.5, np.nan, zlst)
+        zlst = xr.where(zlst < -3.5, np.nan,zlst)
+        zlst.resample(time='M').mean(skipna=True)
 
-        mzlst = zlst.resample(time='M').median(skipna=True)
+        print('Reprojecting and saving ... \n')
+        zlst = zlst.rio.write_crs('4326')
+        zlst = zlst.rio.reproject('EPSG:4326')
+        print('... saving ...')
 
-        mzlst = xr.where(mzlst > 3.5, np.nan, mzlst)
-        mzlst = xr.where(mzlst < -3.5, np.nan,mzlst)
-
+        zlst.to_netcdf(f'{savenc}zlst_{name}_57.nc', mode='w')
+        print(f'zlst_{name}.nc saved!')
     # print(np.nanquantile(mzlst,[0.01,0.1,0.25,.5,.75,.9,.95,.99]))
 
 #%%

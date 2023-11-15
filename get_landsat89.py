@@ -50,13 +50,13 @@ from pyproj import Proj, transform
 
 
 #%%
-# #_____ perhaps _______ CREATE DASK CLUSTER 
-# cluster = GatewayCluster()  
+#_____ perhaps _______ CREATE DASK CLUSTER 
+cluster = GatewayCluster()  
 
-# client = cluster.get_client()
+client = cluster.get_client()
 
-# cluster.adapt(minimum=4, maximum=24)
-# print(cluster.dashboard_link)
+cluster.adapt(minimum=4, maximum=24)
+print(cluster.dashboard_link)
 
 #%%
 # GET FARM and BBOX
@@ -69,8 +69,21 @@ from pyproj import Proj, transform
 
 
 #%% para um grupo dentro de uma farm
+savenc = '/home/jovyan/PlanetaryComputerExamples/myout_nc/'
+
 path = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
 
+
+
+#%%
+name = 'embrapa'
+field = gpd.read_file(path + 'embrapa_sannca.gpkg', driver='GPKG')
+bbox, lat_range, lon_range = get_lims(field)
+field.plot()
+
+
+
+#%%
 layer = 'piquetes_tid'
 column = 'Re'
 val = 80000
@@ -91,7 +104,7 @@ field.plot(column='TID')
 
 #%%
 # RUN THE SEARCH for Landsat 8 and 9 
-datetime="2022-12-01/2023-11-03" # tentar pegar 2022 inteiro, tem erro de imagem faltando e travando os calculos
+datetime="2013-12-01/2022-04-01" # tentar pegar 2022 inteiro, tem erro de imagem faltando e travando os calculos
 print(datetime)
 
 stac = pystac_client.Client.open(
@@ -101,8 +114,9 @@ stac = pystac_client.Client.open(
 
 # only Landsat 8 and 9
 query_params = {
-    "eo:cloud_cover": {"lt": 90},
+    "eo:cloud_cover": {"lt": 40},
     "platform": {"in": ["landsat-8", "landsat-9"]},
+    "landsat:collection_category": { "in": "T1"}
             }
 
 # Aqui definimos o intervalo de datas onde faremos a procura
@@ -112,7 +126,6 @@ search = stac.search(
     collections='landsat-c2-l2',
     query=query_params, # e aqui alteramos o limite máximo de nuvens 
 )
-# XXX maybe the sign will help
 items = planetary_computer.sign(search)
 print('COM SIGN')
 
@@ -136,7 +149,8 @@ data = (
  
 )
 data = data.rename({'x': 'longitude','y': 'latitude'})
-data.compute()
+data
+#data.compute()
 #data
 
 #%%
@@ -145,54 +159,50 @@ ds_ = data.to_dataset(dim='band') #TO KEEP
 ds = data.to_dataset(dim='band') 
 #ds
 # %%
+%%time
 # GET LST
-if 'lwir11' in assets:
-    print('Land Surface Temperature requested. \n -> Converting to Celcius')
-
-    # get lwir11 band info
-    band_info = items[0].assets["lwir11"].extra_fields["raster:bands"][0]
-    print(band_info)
-
-    ds['lwir11'] = ds['lwir11'].astype(float)
-    ds['lwir11'] *=band_info['scale']
-    ds['lwir11'] +=band_info['offset']
-    ds['lwir11'] -= 273.15
-    lst = ds['lwir11'].copy()
-    ds = ds.drop(['lwir11'])
-
-#%%
-# exploring LST
-zlst = zscore_dataset(lst)
-
-mzlst = zlst.resample(time='M').mean()
-
-mzlst = xr.where(mzlst > 3.5, np.nan, mzlst)
-mzlst = xr.where(mzlst < -3.5, np.nan,mzlst)
-
-# print(np.nanquantile(mzlst,[0.01,0.1,0.25,.5,.75,.9,.95,.99]))
-
-#%%
-# XXX SALVAR NETCDF - MISSAO
-# not quite there yet XXX 
 '''
-    position is ok, maybe astype float32 nos values...
-
-    ALSO CHECK XXX
-        01_get_MODIS_temperature
-
+    testando 
+LST DEVERIA SER 100 M, talvez vale carregar soh LWIR
 '''
-drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
+
+
+lst = True
+if lst:
+    if 'lwir11' in assets:
+        print('Land Surface Temperature requested. \n -> Converting to Celcius')
+
+        # get lwir11 band info
+        band_info = items[0].assets["lwir11"].extra_fields["raster:bands"][0]
+        print(band_info)
+
+        ds['lwir11'] = ds['lwir11'].astype(float)
+        ds['lwir11'] *=band_info['scale']
+        ds['lwir11'] +=band_info['offset']
+        ds['lwir11'] -= 273.15
+        lst = ds['lwir11'].copy()
+        #lst = ds.drop(['lwir'])
+
+        drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
          'landsat:collection_number','landsat:wrs_type','instruments']
-# mzlst = mzlst.to_dataset()
-# mzlst = mzlst['lwir11'].drop_vars(['landsat:correction','landsat:wrs_path','landsat:wrs_row',
-#                          'landsat:collection_number','landsat:wrs_type','instruments'])
 
 
-# mzlst = mzlst.rio.write_crs('4326')
-# mzlstr = mzlst.rio.reproject('EPSG:4326')
+        lst = lst.drop_vars(drops)
+        lst = lst.rolling(time=4).mean(skipna=True)
+        
+        # exploring LST
+        zlst = zscore_dataset(lst)
+        zlst = xr.where(zlst > 3.5, np.nan, zlst)
+        zlst = xr.where(zlst < -3.5, np.nan,zlst)
+        zlst.resample(time='M').mean(skipna=True)
 
-# mzlstr.to_netcdf('/home/jovyan/PlanetaryComputerExamples/myout_nc/mzlstr.nc', mode='w', engine='netcdf4')
+        print('Reprojecting and saving ... \n')
+        zlst = zlst.rio.write_crs('4326')
+        zlst = zlst.rio.reproject('EPSG:4326')
+        print('... saving ...')
 
+        zlst.to_netcdf(f'{savenc}zlst_{name}_89.nc', mode='w')
+        print(f'zlst_{name}.nc saved!')
 
 #%%
 # RENAME BANDS
