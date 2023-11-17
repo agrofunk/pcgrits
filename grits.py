@@ -1,3 +1,9 @@
+import numpy as np
+import warnings
+from geopandas import read_file
+import pystac_client
+import planetary_computer
+
 """
     Estou juntando aqui em 'grits' as funções. 
     Há temas diferentes, em algum momento elas terão de ser separadas
@@ -30,16 +36,12 @@
 """
 
 
-
-
 def zscore_dataset(ds):
     '''
         calculate zscores based on monthly mean and std values
         It is recommended the data to be already filtered (maxs, mins, nodata), 
             but it is ok if the dataset is not yet masked (by geometry)
-    
     '''
-    
     def calculate_zscore(da):
         '''
             zscore calculation
@@ -48,25 +50,26 @@ def zscore_dataset(ds):
         std = da.std(skipna=True)
         zscore = (da - mean) / std
         return zscore
-    
+
     # firstly turn the dataset into monthly data
     grouped_ds = ds.groupby('time.month').mean()
-    
-    # then, calculate zscore using the predefined function   
-    zscore = grouped_ds.apply(calculate_zscore) 
-    
+
+    # then, calculate zscore using the predefined function
+    zscore = grouped_ds.apply(calculate_zscore)
+
     return zscore
+
 
 def humanbytes(B):
     """Return the given bytes as a human friendly KB, MB, GB, or TB string."""
     B = float(B)
     KB = float(1024)
-    MB = float(KB ** 2) # 1,048,576
-    GB = float(KB ** 3) # 1,073,741,824
-    TB = float(KB ** 4) # 1,099,511,627,776
+    MB = float(KB ** 2)  # 1,048,576
+    GB = float(KB ** 3)  # 1,073,741,824
+    TB = float(KB ** 4)  # 1,099,511,627,776
 
     if B < KB:
-        return '{0} {1}'.format(B,'Bytes' if 0 == B > 1 else 'Byte')
+        return '{0} {1}'.format(B, 'Bytes' if 0 == B > 1 else 'Byte')
     elif KB <= B < MB:
         return '{0:.2f} KB'.format(B / KB)
     elif MB <= B < GB:
@@ -77,40 +80,34 @@ def humanbytes(B):
         return '{0:.2f} TB'.format(B / TB)
 
 
-
-
-def get_field(file,  column, ID, layer=None, multi_IDs=False, IDs = None):
+def get_field(file,  column, ID, layer=None, multi_IDs=False, IDs=None):
     '''
         file.:str: vector file containing group of farms (CARs, SIGEFs) or in the case of a farm, the farm itself
         column.:str: 'column' to find farms or in the case of a farm file, the column to identify fields (padocks, plots, talhoes, piquetes)
         ID.:str,int: farm ID in the 'column'
         multi_IDs.:bool: default 'False'. If true, one must provide the list of IDs to aggregate as a single field. 
-        
+
         return 'field': a farm, a field or a group of fields combined as one.
     '''
-    
-    from geopandas import read_file  
-    
+
 #     if column == None:
 #         gdf_ = read_file( file, layer=layer )
-    
+
     if file[-4:] == 'gpkg':
         layer = layer
-        gdf_ = read_file( file, layer=layer )
+        gdf_ = read_file(file, layer=layer)
     else:
-        gdf_ = read_file( file )
-    
-    
+        gdf_ = read_file(file)
+
     if column == None:
         field = gdf_
-    
-    
+
     if multi_IDs == False:
-    
+
         field = gdf_[gdf_[column] == ID]
     else:
         field = gdf_[gdf_[column].isin(IDs)]
-        
+
     return field
 
 
@@ -118,60 +115,55 @@ def get_lims(gdf):
     '''
         get bbox, lat_range and lon_range from a geodataframe, let's say, a farm or field.
         It returns the info as three tuples.
-        
+
         gdf.:GeoDataframe:
-        
+
         return bbox, lat_range and lon_range
     '''
-        
+
     limites = gdf
     bbox = (limites.bounds.minx.min(),
             limites.bounds.miny.min(),
             limites.bounds.maxx.max(),
             limites.bounds.maxy.max()
-           )
+            )
 
-    lat_range = (bbox[1],bbox[3])
+    lat_range = (bbox[1], bbox[3])
     lon_range = (bbox[0], bbox[2])
     print('got bbox, lat_range, lon_range')
     return bbox, lat_range, lon_range
 
 
-def get_mms(ds, indices, qmin_qmax = [.01, .99]):
-    
+def get_mms(ds, indices, qmin_qmax=[.01, .99]):
     '''
         Return a dictionary of minimuns and maximuns for each variable in a xarray dataset
         ds.:xarray dataset: the xarray dataset
         qmin_qmax.:2 float list: the minimum and maximum quantile, default is [.01,.99] 1% and 99%
-        
+
     '''
-    
+
     import numpy as np
-    
+
     mms = {}
     keys = indices
     for i in keys:
-        line = np.nanquantile(ds[i].values,qmin_qmax)
+        line = np.nanquantile(ds[i].values, qmin_qmax)
         mms[i] = line
     print(mms)
     return mms
 
 
-def query_l2a_items(bbox, 
+def query_l2a_items(bbox,
                     datetime,
                     max_cloud_cover):
-
     '''
         Query Sentinel 2 L2A items for a given bounding box withing a 
         datetime range 
         bbox.:tuple with coordinates of the 2 corners of a bounding box: it is retrieved by the 
                 get_lims function
         max_cloud_cover.:int: percentage of max cloud allowed.
-    
+
     '''
-    
-    import pystac_client
-    import planetary_computer
 
     catalog = pystac_client.Client.open(
         "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -184,17 +176,16 @@ def query_l2a_items(bbox,
                             collections=["sentinel-2-l2a"],
                             datetime=datetime,
                             query=query_params)
-    
+
     items = search.item_collection()
     print(f' found {len(items)} items')
 
     return items
 
 
-def query_modis_items(bbox, 
-                    datetime,
-                    collection):
-
+def query_modis_items(bbox,
+                      datetime,
+                      collection):
     '''
         Query MODIS items for a given bounding box withing a 
         datetime range 
@@ -203,42 +194,76 @@ def query_modis_items(bbox,
         collection.:str: collection.
         ... product? band?
     '''
-    
-    import pystac_client
-    import planetary_computer
+
+    # import pystac_client
+    # import planetary_computer
 
     catalog = pystac_client.Client.open(
         "https://planetarycomputer.microsoft.com/api/stac/v1",
         modifier=planetary_computer.sign_inplace,
     )
 
-    #query_params = {"eo:cloud_cover": {"lt": max_cloud_cover}}
-    
+    # query_params = {"eo:cloud_cover": {"lt": max_cloud_cover}}
+
     search = catalog.search(bbox=bbox,
                             collections=collections,
                             datetime=datetime
                             )
-    
+
     items = search.item_collection()
     print(f' found {len(items)} items')
 
     return items
 
 
+def query_L457_items(datetime,
+                     bbox, 
+                     max_cloud = 30, 
+                     landsats = ["landsat-4", "landsat-5", "landsat-7"],
+                     tiers = ['T1']
+):
+    '''
+        query Landsat 5 and 7 (and maybe 4)
+    '''
+
+    # stac object from Planetary Computer
+    stac = pystac_client.Client.open(
+    "https://planetarycomputer.microsoft.com/api/stac/v1",
+    modifier=planetary_computer.sign_inplace,
+    )
+
+    # some parameters
+    query_params = {
+        "eo:cloud_cover": {"lt": max_cloud},
+        "platform": {"in": landsats},
+        "landsat:collection_category": { "in": tiers}
+                }
+
+    # search
+    search = stac.search(
+        bbox=bbox,
+        datetime=datetime, 
+        collections='landsat-c2-l2',
+        query=query_params,  
+    )
+
+    # sign items
+    items = planetary_computer.sign(search)
+
+    items = search.item_collection()
+    print(f'\n found {len(items)} items \n first: {items[-1]} \n last: {items[0]} \n')
+    print(items[0].assets.keys())
+    return items
 
 
 
-'''
-    ******************
-    from plotting.py
-    - display_map
-    - rgb
-    - QUERO A map_shapefile AQUI!
 
-    ******************
-    
-'''
 
+
+
+#==========================
+# from DEA plotting.py 
+#==========================
 
 def display_map(x, y, crs="EPSG:4326", margin=-0.5, zoom_bias=0):
     """
@@ -282,8 +307,6 @@ def display_map(x, y, crs="EPSG:4326", margin=-0.5, zoom_bias=0):
     import folium
     import numpy as np
 
-    
-    
     # Convert each corner coordinates to lat-lon
     all_x = (x[0], x[1], x[0], x[1])
     all_y = (y[0], y[0], y[1], y[1])
@@ -292,11 +315,13 @@ def display_map(x, y, crs="EPSG:4326", margin=-0.5, zoom_bias=0):
 
     # Calculate zoom level based on coordinates
     lat_zoom_level = (
-        _degree_to_zoom_level(min(all_latitude), max(all_latitude), margin=margin)
+        _degree_to_zoom_level(min(all_latitude), max(
+            all_latitude), margin=margin)
         + zoom_bias
     )
     lon_zoom_level = (
-        _degree_to_zoom_level(min(all_longitude), max(all_longitude), margin=margin)
+        _degree_to_zoom_level(min(all_longitude), max(
+            all_longitude), margin=margin)
         + zoom_bias
     )
     zoom_level = min(lat_zoom_level, lon_zoom_level)
@@ -323,14 +348,14 @@ def display_map(x, y, crs="EPSG:4326", margin=-0.5, zoom_bias=0):
 
     # Add bounding box as an overlay
     interactive_map.add_child(
-        folium.features.PolyLine(locations=line_segments, color="red", opacity=0.8)
+        folium.features.PolyLine(
+            locations=line_segments, color="red", opacity=0.8)
     )
 
     # Add clickable lat-lon popup box
     interactive_map.add_child(folium.features.LatLngPopup())
 
     return interactive_map
-
 
 
 def rgb(
@@ -347,7 +372,6 @@ def rgb(
     savefig_kwargs={},
     **kwargs,
 ):
-
     """
     Takes an xarray dataset and plots RGB images using three imagery
     bands (e.g ['red', 'green', 'blue']). The `index`
@@ -422,7 +446,6 @@ def rgb(
     file written to file.
     """
 
-    
     # If bands are not in the dataset
     ds_vars = list(ds.data_vars)
     if set(bands).issubset(ds_vars) == False:
@@ -537,26 +560,12 @@ def rgb(
             img.fig.savefig(savefig_path, **savefig_kwargs)
         except:
             img.figure.savefig(savefig_path, **savefig_kwargs)
-            
-            
-            
-            
-"""
-Functions for computing remote sensing band indices on Digital Earth Africa
-data.
 
-From bandindices.py
-- calculate_indices
-- dualpol_indices
-- xr_rasterize
 
-"""
+#=========================
+# from DEA bandindices.py
+#=========================
 
-# Import required packages
-import warnings
-import numpy as np
-
-# Define custom functions
 def calculate_indices(
     ds,
     index=None,
@@ -580,11 +589,11 @@ def calculate_indices(
         A two-dimensional or multi-dimensional array with containing the
         spectral bands required to calculate the index. These bands are
         used as inputs to calculate the selected water index.
-        
+
     index : str or list of strs
         A string giving the name of the index to calculate or a list of
         strings giving the names of the indices to calculate:
-        
+
         * ``'ASI'``  (Artificial Surface Index, Yongquan Zhao & Zhe Zhu 2022)
         * ``'AWEI_ns'`` (Automated Water Extraction Index, no shadows, Feyisa 2014)
         * ``'AWEI_sh'`` (Automated Water Extraction Index, shadows, Feyisa 2014)
@@ -615,16 +624,16 @@ def calculate_indices(
         * ``'TCG'`` (Tasseled Cap Greeness, Crist 1985)
         * ``'TCW'`` (Tasseled Cap Wetness, Crist 1985)
         * ``'WI'`` (Water Index, Fisher 2016)
-        
+
     collection : str
         Deprecated in version 0.1.7. Use `satellite_mission` instead. 
-        
+
         Valid options are: 
         * ``'c2'`` (for USGS Landsat Collection 2)
             If 'c2', then `satellite_mission='ls'`.
         * ``'s2'`` (for Sentinel-2)
             If 's2', then `satellite_mission='s2'`.
-        
+
     satellite_mission : str
         An string that tells the function which satellite mission's data is
         being used to calculate the index. This is necessary because
@@ -635,14 +644,14 @@ def calculate_indices(
 
          * ``'ls'`` (for USGS Landsat)
          * ``'s2'`` (for Copernicus Sentinel-2)
-         
+
     custom_varname : str, optional
         By default, the original dataset will be returned with
         a new index variable named after `index` (e.g. 'NDVI'). To
         specify a custom name instead, you can supply e.g.
         `custom_varname='custom_name'`. Defaults to None, which uses
         `index` to name the variable.
-        
+
     normalise : bool, optional
         Some coefficient-based indices (e.g. ``'WI'``, ``'BAEI'``,
         ``'AWEI_ns'``, ``'AWEI_sh'``, ``'TCW'``, ``'TCG'``, ``'TCB'``,
@@ -651,11 +660,11 @@ def calculate_indices(
         scaled between 0.0 and 1.0 prior to calculating the index.
         Setting `normalise=True` first scales values to a 0.0-1.0 range
         by dividing by 10000.0. Defaults to True.
-        
+
     drop : bool, optional
         Provides the option to drop the original input data, thus saving
         space. If `drop=True`, returns only the index and its values.
-        
+
     deep_copy: bool, optional
         If `deep_copy=False`, calculate_indices will modify the original
         array, adding bands to the input dataset and not removing them.
@@ -714,7 +723,7 @@ def calculate_indices(
         "BAI": lambda ds: (1.0 / ((0.10 - ds.red) ** 2 + (0.06 - ds.nir) ** 2)),
         # Normalised Difference Chlorophyll Index,
         # (Mishra & Mishra, 2012)
-         "NDCI": lambda ds: (ds.rededge - ds.red) / (ds.rededge + ds.red),
+        "NDCI": lambda ds: (ds.rededge - ds.red) / (ds.rededge + ds.red),
         # Normalised Difference Snow Index, Hall 1995
         "NDSI": lambda ds: (ds.green - ds.swir16) / (ds.green + ds.swir16),
         # Normalised Difference Water Index, McFeeters 1996
@@ -739,7 +748,8 @@ def calculate_indices(
         ),
         # Automated Water Extraction Index (shadows), Feyisa 2014
         "AWEI_sh": lambda ds: (
-            ds.blue + 2.5 * ds.green - 1.5 * (ds.nir + ds.swir16) - 0.25 * ds.swir22
+            ds.blue + 2.5 * ds.green - 1.5 * \
+            (ds.nir + ds.swir16) - 0.25 * ds.swir22
         ),
         # Water Index, Fisher 2016
         "WI": lambda ds: (
@@ -788,62 +798,78 @@ def calculate_indices(
         # Modified Bare Soil Index, Nguyen et al. 2021
         "MBI": lambda ds: ((ds.swir16 - ds.swir22 - ds.nir) / (ds.swir16 + ds.swir22 + ds.nir)) + 0.5,
     }
-    
+
     # Enhanced Normalised Difference Impervious Surfaces Index, Chen et al. 2019
     def mndwi(ds):
         return (ds.green - ds.swir16) / (ds.green + ds.swir16)
+
     def swir_diff(ds):
         return ds.swir16/ds.swir22
+
     def alpha(ds):
         return (2*(np.mean(ds.blue)))/(np.mean(swir_diff(ds)) + np.mean(mndwi(ds)**2))
+
     def ENDISI(ds):
         m = mndwi(ds)
         s = swir_diff(ds)
         a = alpha(ds)
         return (ds.blue - (a)*(s + m**2))/(ds.blue + (a)*(s + m**2))
-    
+
     index_dict["ENDISI"] = ENDISI
-    
-    ## Artificial Surface Index, Yongquan Zhao & Zhe Zhu 2022
+
+    # Artificial Surface Index, Yongquan Zhao & Zhe Zhu 2022
     def af(ds):
         AF = (ds.nir - ds.blue) / (ds.nir + ds.blue)
-        AF_norm = (AF - AF.min(dim=["y","x"]))/(AF.max(dim=["y","x"]) - AF.min(dim=["y","x"]))
+        AF_norm = (AF - AF.min(dim=["y", "x"])) / \
+            (AF.max(dim=["y", "x"]) - AF.min(dim=["y", "x"]))
         return AF_norm
+
     def ndvi(ds):
         return (ds.nir - ds.red) / (ds.nir + ds.red)
+
     def msavi(ds):
-        return ((2 * ds.nir + 1 - ((2 * ds.nir + 1) ** 2 - 8 * (ds.nir - ds.red)) ** 0.5) / 2 )
+        return ((2 * ds.nir + 1 - ((2 * ds.nir + 1) ** 2 - 8 * (ds.nir - ds.red)) ** 0.5) / 2)
+
     def vsf(ds):
         NDVI = ndvi(ds)
         MSAVI = msavi(ds)
-        VSF = 1 - NDVI * MSAVI 
-        VSF_norm = (VSF - VSF.min(dim=["y","x"]))/(VSF.max(dim=["y","x"]) - VSF.min(dim=["y","x"]))
+        VSF = 1 - NDVI * MSAVI
+        VSF_norm = (VSF - VSF.min(dim=["y", "x"])) / \
+            (VSF.max(dim=["y", "x"]) - VSF.min(dim=["y", "x"]))
         return VSF_norm
+
     def mbi(ds):
         return ((ds.swir16 - ds.swir22 - ds.nir) / (ds.swir16 + ds.swir22 + ds.nir)) + 0.5
+
     def embi(ds):
         MBI = mbi(ds)
         MNDWI = mndwi(ds)
         return (MBI - MNDWI - 0.5) / (MBI + MNDWI + 1.5)
+
     def ssf(ds):
         EMBI = embi(ds)
         SSF = 1 - EMBI
-        SSF_norm = (SSF - SSF.min(dim=["y","x"]))/(SSF.max(dim=["y","x"]) - SSF.min(dim=["y","x"]))
-        return  SSF_norm
+        SSF_norm = (SSF - SSF.min(dim=["y", "x"])) / \
+            (SSF.max(dim=["y", "x"]) - SSF.min(dim=["y", "x"]))
+        return SSF_norm
     # Overall modulation using the  Modulation Factor (MF).
+
     def mf(ds):
-        MF = ((ds.blue + ds.green) - (ds.nir + ds.swir16)) / ((ds.blue + ds.green) + (ds.nir + ds.swir16))
-        MF_norm = (MF - MF.min(dim=["y","x"]))/(MF.max(dim=["y","x"]) - MF.min(dim=["y","x"]))
+        MF = ((ds.blue + ds.green) - (ds.nir + ds.swir16)) / \
+            ((ds.blue + ds.green) + (ds.nir + ds.swir16))
+        MF_norm = (MF - MF.min(dim=["y", "x"])) / \
+            (MF.max(dim=["y", "x"]) - MF.min(dim=["y", "x"]))
         return MF_norm
+
     def ASI(ds):
         AF = af(ds)
         VSF = vsf(ds)
         SSF = ssf(ds)
         MF = mf(ds)
         return AF * VSF * SSF * MF
-    
+
     index_dict["ASI"] = ASI
-    
+
     # If index supplied is not a list, convert to list. This allows us to
     # iterate through either multiple or single indices in the loop below
     indices = index if isinstance(index, list) else [index]
@@ -896,11 +922,11 @@ def calculate_indices(
                 "refer to the function documentation for a full "
                 "list of valid options for `index`"
             )
-        
+
         # Deprecation warning if `collection` is specified instead of `satellite_mission`.
         if collection is not None:
-            warnings.warn('`collection` was deprecated in version 0.1.7. Use `satelite_mission` instead.', 
-                          DeprecationWarning, 
+            warnings.warn('`collection` was deprecated in version 0.1.7. Use `satelite_mission` instead.',
+                          DeprecationWarning,
                           stacklevel=2)
             # Map the collection values to the valid satellite_mission values.
             if collection == "c2":
@@ -914,7 +940,6 @@ def calculate_indices(
                     "`collection`. Please specify either \n"
                     "'c2' or 's2'.")
 
-            
         # Rename bands to a consistent format if depending on what satellite mission
         # is specified in `satellite_mission`. This allows the same index calculations
         # to be applied to all satellite missions. If no satellite mission was provided,
@@ -927,12 +952,12 @@ def calculate_indices(
                 "calculates indices using the correct spectral "
                 "bands."
             )
-            
+
         elif satellite_mission == "ls":
             sr_max = 1.0
             # Dictionary mapping full data names to simpler alias names
             # This only applies to properly-scaled "ls" data i.e. from
-            # the Landsat geomedians. calculate_indices will not show 
+            # the Landsat geomedians. calculate_indices will not show
             # correct output for raw (unscaled) Landsat data (i.e. default
             # outputs from dc.load)
             bandnames_dict = {
@@ -942,8 +967,8 @@ def calculate_indices(
                 "SR_B4": "nir",
                 "SR_B5": "swir_1",
                 "SR_B7": "swir_2",
-                }
-            
+            }
+
             # Rename bands in dataset to use simple names (e.g. 'red')
             bands_to_rename = {
                 a: b for a, b in bandnames_dict.items() if a in ds.variables
@@ -953,7 +978,7 @@ def calculate_indices(
             sr_max = 10000
             # Dictionary mapping full data names to simpler alias names
             bandnames_dict = {
-                
+
                 "B02": "blue",
                 "B03": "green",
                 "B04": "red",
@@ -964,7 +989,7 @@ def calculate_indices(
                 "B08A": "rededge",
                 "B11": "swir16",
                 "B12": "swir22",
-                }
+            }
 
             # Rename bands in dataset to use simple names (e.g. 'red')
             bands_to_rename = {
@@ -1001,6 +1026,7 @@ def calculate_indices(
 
     # Return input dataset with added water index variable
     return ds
+
 
 def dualpol_indices(
     ds,
@@ -1165,15 +1191,9 @@ def dualpol_indices(
     # Return input dataset with added water index variable
     return ds
 
-
-
-'''
-    From spatial.py
-    
-    xr_rasterize
-    
-'''
-
+#========================
+# from DEA spatial.py
+#========================
 def xr_rasterize(gdf,
                  da,
                  attribute_col=False,
@@ -1184,10 +1204,10 @@ def xr_rasterize(gdf,
                  y_dim='y',
                  export_tiff=None,
                  verbose=False,
-                 **rasterio_kwargs):    
+                 **rasterio_kwargs):
     """
     Rasterizes a geopandas.GeoDataFrame into an xarray.DataArray.
-    
+
     Parameters
     ----------
     gdf : geopandas.GeoDataFrame
@@ -1231,15 +1251,15 @@ def xr_rasterize(gdf,
     **rasterio_kwargs : 
         A set of keyword arguments to rasterio.features.rasterize
         Can include: 'all_touched', 'merge_alg', 'dtype'.
-    
+
     Returns
     -------
     xarr : xarray.DataArray
-    
+
     """
     from rasterio.features import rasterize
     import xarray as xr
-    
+
     from datacube.utils.geometry import assign_crs
 
     # Check for a crs object
@@ -1253,7 +1273,7 @@ def xr_rasterize(gdf,
                 raise ValueError("Please add a `crs` attribute to the "
                                  "xarray.DataArray, or provide a CRS using the "
                                  "function's `crs` parameter (e.g. crs='EPSG:3577')")
-    
+
     # Check if transform is provided as a xarray.DataArray method.
     # If not, require supplied Affine
     if transform is None:
@@ -1266,43 +1286,43 @@ def xr_rasterize(gdf,
                 # Try getting transform from 'transform' attribute
                 transform = da.transform
             except:
-                # If neither of those options work, raise an exception telling the 
+                # If neither of those options work, raise an exception telling the
                 # user to provide a transform
                 raise TypeError("Please provide an Affine transform object using the "
                                 "`transform` parameter (e.g. `from affine import "
                                 "Affine; Affine(30.0, 0.0, 548040.0, 0.0, -30.0, "
                                 "6886890.0)`")
-    
-    # Grab the 2D dims (not time)    
+
+    # Grab the 2D dims (not time)
     try:
         dims = da.geobox.dims
     except:
-        dims = y_dim, x_dim  
-    
+        dims = y_dim, x_dim
+
     # Coords
     xy_coords = [da[dims[0]], da[dims[1]]]
-    #xy_coords = [da['y'], da['x']]
-    
+    # xy_coords = [da['y'], da['x']]
+
     # Shape
     try:
         y, x = da.geobox.shape
     except:
         y, x = len(xy_coords[0]), len(xy_coords[1])
-    
+
     # Reproject shapefile to match CRS of raster
     if verbose:
         print(f'Rasterizing to match xarray.DataArray dimensions ({y}, {x})')
-    
+
     try:
         gdf_reproj = gdf.to_crs(crs=crs)
     except:
         # Sometimes the crs can be a datacube utils CRS object
         # so convert to string before reprojecting
         gdf_reproj = gdf.to_crs(crs={'init': str(crs)})
-    
-    # If an attribute column is specified, rasterise using vector 
+
+    # If an attribute column is specified, rasterise using vector
     # attribute values. Otherwise, rasterise into a boolean array
-    if attribute_col:        
+    if attribute_col:
         # Use the geometry and attributes from `gdf` to create an iterable
         shapes = zip(gdf_reproj.geometry, gdf_reproj[attribute_col])
     else:
@@ -1311,26 +1331,26 @@ def xr_rasterize(gdf,
 
     # Rasterise shapes into an array
     arr = rasterize(shapes=shapes,
-                                      out_shape=(y, x),
-                                      transform=transform,
-                                      **rasterio_kwargs)
-        
+                    out_shape=(y, x),
+                    transform=transform,
+                    **rasterio_kwargs)
+
     # Convert result to a xarray.DataArray
     xarr = xr.DataArray(arr,
                         coords=xy_coords,
                         dims=dims,
                         attrs=da.attrs,
                         name=name if name else None)
-    
+
     # Add back crs if xarr.attrs doesn't have it
     if xarr.geobox is None:
         xarr = assign_crs(xarr, str(crs))
-    
-    if export_tiff: 
+
+    if export_tiff:
         if verbose:
             print(f"Exporting GeoTIFF to {export_tiff}")
         write_cog(xarr,
                   export_tiff,
                   overwrite=True)
-                
+
     return xarr

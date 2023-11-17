@@ -1,8 +1,4 @@
 
-#%%
-print('CHECK THIS OUT AND MAKE IT WORK FOR ME \n ')
-print('https://github.com/flowers-huang/cs325b-wildfire/tree/665fdff830de37e84f717af8797996d04215b492') 
-
 # pip install odc-ui rasterstats
 import sys
 import subprocess
