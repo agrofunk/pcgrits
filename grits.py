@@ -36,30 +36,6 @@ import planetary_computer
 """
 
 
-def zscore_dataset(ds):
-    '''
-        calculate zscores based on monthly mean and std values
-        It is recommended the data to be already filtered (maxs, mins, nodata), 
-            but it is ok if the dataset is not yet masked (by geometry)
-    '''
-    def calculate_zscore(da):
-        '''
-            zscore calculation
-        '''
-        mean = da.mean(skipna=True)
-        std = da.std(skipna=True)
-        zscore = (da - mean) / std
-        return zscore
-
-    # firstly turn the dataset into monthly data
-    grouped_ds = ds.groupby('time.month').mean()
-
-    # then, calculate zscore using the predefined function
-    zscore = grouped_ds.apply(calculate_zscore)
-
-    return zscore
-
-
 def humanbytes(B):
     """Return the given bytes as a human friendly KB, MB, GB, or TB string."""
     B = float(B)
@@ -152,7 +128,9 @@ def get_mms(ds, indices, qmin_qmax=[.01, .99]):
     print(mms)
     return mms
 
-
+#======================
+# QUERY SATELLITE DATA
+#======================
 def query_l2a_items(bbox,
                     datetime,
                     max_cloud_cover):
@@ -181,7 +159,6 @@ def query_l2a_items(bbox,
     print(f' found {len(items)} items')
 
     return items
-
 
 def query_modis_items(bbox,
                       datetime,
@@ -294,9 +271,6 @@ def query_L89_items(datetime,
     print(f'\n found {len(items)} items \n first: {items[-1]} \n last: {items[0]} \n')
     print(items[0].assets.keys())
     return items
-
-
-
 
 #==========================
 # from DEA plotting.py 
