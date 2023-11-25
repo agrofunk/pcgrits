@@ -43,11 +43,19 @@ path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
 file = path_vector + 'fazenda_uniguiri.gpkg'
 layer = 'piquetes_tid'
 
+# %%# Get FIELD
+field = gpd.read_file(file, layer=layer)
+#field = field[field['Re'] == 80000]
+
+bbox, lat_range, lon_range = get_lims(field)
+print(field.head())
+field.plot(column='TID')
+
+#%% Define DATE TIME
 # Landsat 4,5,7 have 'lwir' and 8 and 9 have 'lwir11'
 # datetime89 = '2013-05-01/'+str(date.today())
 # datetime457 = '1985-01-01/2013-05-01'
-datetime89 = '2021-05-01/2022-11-22'
-datetime457 = '2006-01-01/2008-05-01'
+datetime = '2012-05-01/2015-11-22'
 
 
 
@@ -64,55 +72,75 @@ path_csv = '/home/jovyan/PlanetaryComputerExamples/OUT/csv/'
 # some parameters to filter scenes
 max_cloud = 50
 
-# %%# Get FIELD
-field = gpd.read_file(file, layer=layer)
-#field = field[field['Re'] == 80000]
-
-bbox, lat_range, lon_range = get_lims(field)
-print(field.head())
-field.plot(column='TID')
 
 # %% QUERY LANDSAT
-# You can exclude some Landsats from the list
-items89 = query_L89_items(datetime=datetime89,
-                         bbox=bbox,
-                         max_cloud=max_cloud,
-                         landsats = ["landsat-8", "landsat-9"]
-                        )
+def query_Landsat_items(datetime,
+                     bbox, 
+                     max_cloud = 30, 
+                     landsats = ["landsat-4", "landsat-5","landsat-7",
+                                 "landsat-8", "landsat-9"],
+                     tiers = ['T1']
+):
+    '''
+        query Landsat 8 and 9
+    '''
 
-items457 = query_L457_items(datetime=datetime457,
+    # stac object from Planetary Computer
+    stac = pystac_client.Client.open(
+    "https://planetarycomputer.microsoft.com/api/stac/v1",
+    modifier=planetary_computer.sign_inplace,
+    )
+
+    # some parameters
+    query_params = {
+        "eo:cloud_cover": {"lt": max_cloud},
+        "platform": {"in": landsats},
+        "landsat:collection_category": { "in": tiers}
+                }
+
+    # search
+    search = stac.search(
+        bbox=bbox,
+        datetime=datetime, 
+        collections='landsat-c2-l2',
+        query=query_params,  
+    )
+
+    # sign items
+    items = planetary_computer.sign(search)
+
+    items = search.item_collection()
+    print(f'\n found {len(items)} items \n first: {items[-1]} \n last: {items[0]} \n')
+    print(items[0].assets.keys())
+    return items
+
+#%% You can exclude some Landsats from the list
+items = query_Landsat_items(datetime=datetime,
                          bbox=bbox,
                          max_cloud=max_cloud,
-                         landsats = ["landsat-4", "landsat-5", "landsat-7"]
+                         landsats = [
+                             "landsat-4", "landsat-5", "landsat-7",
+                                    "landsat-8", "landsat-9"
+                                     ]
                         )
+print(len(items))
 
 #%%
-assets89 = ['lwir11']
-data89 = (
-        stackstac.stack(
-        items89,
-        assets=assets89,
-        bounds_latlon=bbox,
-        epsg=4326, # o xarray de imagens será retornado no EPSG:4326
-        #resolution = 0.000281612818071153, # cuidado se for mexer na resolucao, tente algo como 0.001 para começar, pois é graus (não metros)
-    ))
-data89 = data89.rename({'x': 'longitude','y': 'latitude'})
-dst89 = data89.to_dataset(dim='band')
-del dst89.attrs['spec']
-# %%
-assets457 = ['lwir']
-data457 = (
-        stackstac.stack(
-        items457,
-        assets=assets457,
-        bounds_latlon=bbox,
-        epsg=4326, # o xarray de imagens será retornado no EPSG:4326
-        #resolution = 0.000281612818071153, # cuidado se for mexer na resolucao, tente algo como 0.001 para começar, pois é graus (não metros)
-    ))
 
-data457 = data457.rename({'x': 'longitude','y': 'latitude'})
-dst457 = data457.to_dataset(dim='band')
-del dst457.attrs['spec']
+#%%
+assets = ['lwir11','lwir']
+data= (
+        stackstac.stack(
+        items,
+        assets=assets,
+        bounds_latlon=bbox,
+        epsg=4326, # o xarray de imagens será retornado no EPSG:4326
+        #resolution = 0.000281612818071153, # cuidado se for mexer na resolucao, tente algo como 0.001 para começar, pois é graus (não metros)
+    ))
+data = data.rename({'x': 'longitude','y': 'latitude'})
+dst = data.to_dataset(dim='band')
+del dst.attrs['spec']
+
 # %%
 def get_lst(lwirband, items, dst, w=5):
     '''
