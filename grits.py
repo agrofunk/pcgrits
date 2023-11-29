@@ -192,51 +192,11 @@ def query_modis_items(bbox,
 
     return items
 
-
-def query_L457_items(datetime,
+def query_Landsat_items(datetime,
                      bbox, 
                      max_cloud = 30, 
-                     landsats = ["landsat-4", "landsat-5", "landsat-7"],
-                     tiers = ['T1']
-):
-    '''
-        query Landsat 5 and 7 (and maybe 4)
-    '''
-
-    # stac object from Planetary Computer
-    stac = pystac_client.Client.open(
-    "https://planetarycomputer.microsoft.com/api/stac/v1",
-    modifier=planetary_computer.sign_inplace,
-    )
-
-    # some parameters
-    query_params = {
-        "eo:cloud_cover": {"lt": max_cloud},
-        "platform": {"in": landsats},
-        "landsat:collection_category": { "in": tiers}
-                }
-
-    # search
-    search = stac.search(
-        bbox=bbox,
-        datetime=datetime, 
-        collections='landsat-c2-l2',
-        query=query_params,  
-    )
-
-    # sign items
-    items = planetary_computer.sign(search)
-
-    items = search.item_collection()
-    print(f'\n found {len(items)} items \n first: {items[-1]} \n last: {items[0]} \n')
-    print(items[0].assets.keys())
-    return items
-
-
-def query_L89_items(datetime,
-                     bbox, 
-                     max_cloud = 30, 
-                     landsats = ["landsat-8", "landsat-9"],
+                     landsats = ["landsat-4", "landsat-5","landsat-7",
+                                 "landsat-8", "landsat-9"],
                      tiers = ['T1']
 ):
     '''
