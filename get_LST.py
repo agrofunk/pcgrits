@@ -252,25 +252,25 @@ def extract_fz_timeseries(dst, data, field, column, path_csv, name, suffix, band
                 zipMe.write(file, compress_type=zipfile.ZIP_DEFLATED)
 
 #%%
-extract_fz_timeseries(lst89, 
-                      data89, 
+extract_fz_timeseries(da, 
+                      data, 
                       field, 
                       'TID', 
                       path_csv, 
                       name, 
-                      '89', 
-                      'lwir11', 
-                      ochunk=64, zip=False, verbose=False)
+                      'allLandsat', 
+                      'lst', 
+                      ochunk=64, verbose=False)
 #%%
-extract_fz_timeseries(lst457, 
-                      data457, 
-                      field, 
-                      'TID', 
-                      path_csv, 
-                      name, 
-                      '457', 
-                      'lwir', 
-                      ochunk=64, zip=False, verbose=True)
-#%%
+# extract_fz_timeseries(lst457, 
+#                       data457, 
+#                       field, 
+#                       'TID', 
+#                       path_csv, 
+#                       name, 
+#                       '457', 
+#                       'lwir', 
+#                       ochunk=64, zip=False, verbose=True)
+# #%%
 
 print(f'Tempo total de processamento das extractions: {time.time() - start} segundos')

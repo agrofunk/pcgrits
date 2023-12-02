@@ -1,6 +1,6 @@
 # %%
 print('''
-      Landsat Land Surface Temperature series extractor
+      Vegetation Indices series extractor
         created by Denis Mariano 
         www.seca.space
         denis@seca.space
@@ -64,7 +64,7 @@ a CAR MT-5103601-948E6FB555E3445CB7E0538F61483371
  XXX ler o gpkg do MT leva 30 segundos, não está bom
  
 '''
-#car = 'MT-5103601-948E6FB555E3445CB7E0538F61483371'
+car = 'MT-5103601-948E6FB555E3445CB7E0538F61483371'
 if car:
     name = car
     gdf = gpd.read_file('/home/jovyan/PlanetaryComputerExamples/vetorial/CAR/MT_CAR_AREA_IMOVEL_.gpkg')
@@ -80,6 +80,7 @@ if car:
 # %% Define period and output path
 # Landsat 4,5,7 have 'lwir' and 8 and 9 have 'lwir11'
 datetime='1985-01-01/'+str(date.today())
+#datetime='2015-01-01/2017-01-01'
 print(datetime)
 
 # Parameters to save raster data?
@@ -109,11 +110,17 @@ items89 = query_Landsat_items(datetime=datetime,
                                 "landsat-8", "landsat-9"
                                      ])
 
+# %% LOAD BANDS
+indices = ["NDVI","LAI", "EVI", "BSI"]
+assets = ['blue','green','red','nir08','swir16']
+#assets = ['lwir11']
+
+
 # get the data the lazy way
 data89 = (
         stackstac.stack(
         items89,
-        assets=['lwir11'],
+        assets=assets,
         bounds_latlon=bbox,
         epsg=4326, 
     ))
@@ -121,40 +128,70 @@ data89 = (
 data57 = (
         stackstac.stack(
         items57,
-        assets=['lwir'],
+        assets=assets,
         bounds_latlon=bbox,
         epsg=4326, 
     ))
 # %% The CONCAT Way
-# SQUEEZE monoBAND
-data89 = data89.rename('lwir').squeeze()
-data57 = data57.rename('lwir').squeeze()
+# %% SQUEEZE monoBAND
+# data89 = data89.rename('lwir').squeeze()
+# data57 = data57.rename('lwir').squeeze()
 
-# MATCH REPROJECTION using rioxarray
-print('matching DataArrays spatially')
-data57 = data57.rio.reproject_match(data89)
+# %%MATCH REPROJECTION using rioxarray
+# print('matching DataArrays spatially')
+ds57 = data57.to_dataset(dim='band')
+ds57 = ds57.rio.write_crs('4326')
+ds89 = data89.to_dataset(dim='band')
+ds89 = ds89.rio.write_crs('4326')
 
-# CONCATENATE DATAARRAYS
-da = xr.concat([data89, data57], dim="time", join='outer')
+ds57 = ds57.rio.reproject_match(ds89)
 
-# RESCALE AND FILTER FOR LAND SURFACE TEMPERATURE
-print('reescaling LST')
-scale = items89[0].assets['lwir11'].extra_fields["raster:bands"][0]['scale']
-offset = items89[0].assets['lwir11'].extra_fields["raster:bands"][0]['offset']
-da = da*scale + offset - 273.15
-da = da.astype('float32')
-da = xr.where((da < -5) | (da > 65), np.nan, da)
+#%% CONCATENATE DATAARRAYS
+# ds = xr.concat([ds89, ds57], dim="time", 
+#                join='outer',
+#                compat='override')
+
+ds = xr.merge([ds89,ds57], compat='override', join='outer')
+ds = ds.sortby('time')
+
+# %% RESCALE AND FILTER FOR LAND SURFACE TEMPERATURE
+# print('reescaling LST')
+# scale = items89[0].assets['lwir11'].extra_fields["raster:bands"][0]['scale']
+# offset = items89[0].assets['lwir11'].extra_fields["raster:bands"][0]['offset']
+# da = da*scale + offset - 273.15
+# da = da.astype('float32')
+# da = xr.where((da < -5) | (da > 65), np.nan, da)
 
 # REPROJECT
-print('reprojecting')
-da = da.rio.write_crs('4326')
-da = da.rio.reproject('EPSG:4326')
-da = da.rename({'x': 'longitude','y': 'latitude'})
+# print('reprojecting')
+# da = da.rio.write_crs('4326')
+# da = da.rio.reproject('EPSG:4326')
+# da = da.rename({'x': 'longitude','y': 'latitude'})
 
-# REORDER
-da = da.rename('lst')
-da = da.sortby('time')
+# %% REORDER
+#da = da.rename('lst')
+# da = da.sortby('time')
 
+#%%
+#ds = da.to_dataset(dim='band')
+ds = ds.rename({'nir08':'nir'})
+
+#%%
+dsi = calculate_indices(ds, 
+                       index= indices, 
+                       satellite_mission='ls', 
+                       drop=True);
+
+# XXX OS INDICES SAO GERADOS APARENTEMENTE OK
+
+import pylab as plt
+lat, lon = -15.80757, -54.82775
+
+#%%
+dsi['BSI'].sel(y=lat, x=lon, method='nearest').plot()
+
+
+ #%%
 # INTERPOLATE NANs
 print('interpolating NaNs')
 da = da.interpolate_na(dim='time',
