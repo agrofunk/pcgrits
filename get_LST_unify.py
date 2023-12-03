@@ -43,20 +43,20 @@ print('all good!')
 # %% DEFINE AREA OF INTEREST
 # =========================
 # Name for reference
-name = 'Uniguiri_full_'
+# name = 'Uniguiri_full_'
 
-# AOI file and layer (for GPKG)
-path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
-file = path_vector + 'fazenda_uniguiri.gpkg'
-layer = 'piquetes_tid'
+# # AOI file and layer (for GPKG)
+# path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+# file = path_vector + 'fazenda_uniguiri.gpkg'
+# layer = 'piquetes_tid'
 
-# Get FIELD
-field = gpd.read_file(file, layer=layer)
-#field = field[field['Re'] == 80000]
+# # Get FIELD
+# field = gpd.read_file(file, layer=layer)
+# #field = field[field['Re'] == 80000]
 
-bbox, lat_range, lon_range = get_lims(field)
-print(field.head())
-field.plot(column='TID')
+# bbox, lat_range, lon_range = get_lims(field)
+# print(field.head())
+# field.plot(column='TID')
 
 # %% THE CAR WAY
 '''
@@ -65,6 +65,7 @@ a CAR MT-5103601-948E6FB555E3445CB7E0538F61483371
  
 '''
 #car = 'MT-5103601-948E6FB555E3445CB7E0538F61483371'
+car = 'MT-5104807-84F5196D22B847C1BD91AA27DB598BC1'
 if car:
     name = car
     gdf = gpd.read_file('/home/jovyan/PlanetaryComputerExamples/vetorial/CAR/MT_CAR_AREA_IMOVEL_.gpkg')
@@ -164,7 +165,7 @@ da = da.interpolate_na(dim='time',
 
 # %% XXX SMOOTHENING WOULD BE COOL
 smooth = True
-w = 5
+w = 7
 sm = 'pchip_smW'+str(w)
 if smooth:
     print('smoothening...')

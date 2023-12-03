@@ -1,15 +1,27 @@
 # %%
 print('''
-      Vegetation Indices series extractor
+      Vegetation Indices series extraction 
+        from Landsat series
+      
+        ---
         created by Denis Mariano 
-        www.seca.space
-        denis@seca.space
+            denis@seca.space
+                www.seca.space
+                    2023-12
+    ToDo's
+      - verificar porque EVI e LAI não estão displaying no valuetool
+        - TEM QUE DAR UM TRATO NOS VALUES 
+      - agregar no tempo, zscores
+      - plots
+      - extraction   
+    
         ''')
 
 # %%
 import time
 start = time.time()
 
+import pylab as plt
 from datetime import date
 import sys
 import subprocess
@@ -42,29 +54,31 @@ from grits import *
 print('all good!')
 # %% DEFINE AREA OF INTEREST
 # =========================
-# Name for reference
-name = 'Uniguiri_full_'
+# # Name for reference
+# name = 'Uniguiri_full_'
 
-# AOI file and layer (for GPKG)
-path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
-file = path_vector + 'fazenda_uniguiri.gpkg'
-layer = 'piquetes_tid'
+# # AOI file and layer (for GPKG)
+# path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+# file = path_vector + 'fazenda_uniguiri.gpkg'
+# layer = 'piquetes_tid'
 
-# Get FIELD
-field = gpd.read_file(file, layer=layer)
-#field = field[field['Re'] == 80000]
+# # Get FIELD
+# field = gpd.read_file(file, layer=layer)
+# #field = field[field['Re'] == 80000]
 
-bbox, lat_range, lon_range = get_lims(field)
-print(field.head())
-field.plot(column='TID')
+# bbox, lat_range, lon_range = get_lims(field)
+# print(field.head())
+# field.plot(column='TID')
 
 # %% THE CAR WAY
 '''
-a CAR MT-5103601-948E6FB555E3445CB7E0538F61483371
  XXX ler o gpkg do MT leva 30 segundos, não está bom
  
 '''
 car = 'MT-5103601-948E6FB555E3445CB7E0538F61483371'
+car = 'MT-5104807-84F5196D22B847C1BD91AA27DB598BC1'
+
+#%%
 if car:
     name = car
     gdf = gpd.read_file('/home/jovyan/PlanetaryComputerExamples/vetorial/CAR/MT_CAR_AREA_IMOVEL_.gpkg')
@@ -73,12 +87,10 @@ if car:
     bbox, lat_range, lon_range = get_lims(field)
     print(field.head())
     del gdf
+    print(f'área da fazenda = {field.geometry.to_crs(6933).area.values[0]/10000:.1f} ha')
     field.plot()
 
-
-
 # %% Define period and output path
-# Landsat 4,5,7 have 'lwir' and 8 and 9 have 'lwir11'
 datetime='1985-01-01/'+str(date.today())
 #datetime='2015-01-01/2017-01-01'
 print(datetime)
@@ -94,7 +106,7 @@ column = 'TID'
 path_csv = '/home/jovyan/PlanetaryComputerExamples/OUT/csv/'
 
 # some parameters to filter scenes
-max_cloud = 50
+max_cloud = 70
 # %% QUERY LANDSAT
 items57 = query_Landsat_items(datetime=datetime,
                          bbox=bbox,
@@ -113,9 +125,6 @@ items89 = query_Landsat_items(datetime=datetime,
 # %% LOAD BANDS
 indices = ["NDVI","LAI", "EVI", "BSI"]
 assets = ['blue','green','red','nir08','swir16']
-#assets = ['lwir11']
-
-
 # get the data the lazy way
 data89 = (
         stackstac.stack(
@@ -124,6 +133,7 @@ data89 = (
         bounds_latlon=bbox,
         epsg=4326, 
     ))
+del data89.attrs['spec']
 
 data57 = (
         stackstac.stack(
@@ -132,13 +142,9 @@ data57 = (
         bounds_latlon=bbox,
         epsg=4326, 
     ))
-# %% The CONCAT Way
-# %% SQUEEZE monoBAND
-# data89 = data89.rename('lwir').squeeze()
-# data57 = data57.rename('lwir').squeeze()
+del data57.attrs['spec']
 
-# %%MATCH REPROJECTION using rioxarray
-# print('matching DataArrays spatially')
+# %% MATCH REPROJECTION using rioxarray
 ds57 = data57.to_dataset(dim='band')
 ds57 = ds57.rio.write_crs('4326')
 ds89 = data89.to_dataset(dim='band')
@@ -146,50 +152,96 @@ ds89 = ds89.rio.write_crs('4326')
 
 ds57 = ds57.rio.reproject_match(ds89)
 
-#%% CONCATENATE DATAARRAYS
-# ds = xr.concat([ds89, ds57], dim="time", 
-#                join='outer',
-#                compat='override')
-
-ds = xr.merge([ds89,ds57], compat='override', join='outer')
+#%% CONCAT DATASETS
+ds = xr.concat([ds89, ds57], dim="time", join='outer')
 ds = ds.sortby('time')
 
-# %% RESCALE AND FILTER FOR LAND SURFACE TEMPERATURE
-# print('reescaling LST')
-# scale = items89[0].assets['lwir11'].extra_fields["raster:bands"][0]['scale']
-# offset = items89[0].assets['lwir11'].extra_fields["raster:bands"][0]['offset']
-# da = da*scale + offset - 273.15
-# da = da.astype('float32')
-# da = xr.where((da < -5) | (da > 65), np.nan, da)
-
 # REPROJECT
-# print('reprojecting')
-# da = da.rio.write_crs('4326')
-# da = da.rio.reproject('EPSG:4326')
-# da = da.rename({'x': 'longitude','y': 'latitude'})
+print('reprojecting')
+ds = ds.rio.write_crs('4326')
+ds = ds.rio.reproject('EPSG:4326')
+ds = ds.rename({'x': 'longitude','y': 'latitude'})
 
-# %% REORDER
-#da = da.rename('lst')
-# da = da.sortby('time')
-
-#%%
-#ds = da.to_dataset(dim='band')
+#%% rename bands for IVs calculation in Landsat
 ds = ds.rename({'nir08':'nir'})
 
-#%%
 dsi = calculate_indices(ds, 
                        index= indices, 
                        satellite_mission='ls', 
                        drop=True);
-
-# XXX OS INDICES SAO GERADOS APARENTEMENTE OK
-
-import pylab as plt
-lat, lon = -15.80757, -54.82775
+#%%
+# DROPPING STUFF
+drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
+        'landsat:collection_number','landsat:wrs_type','instruments',
+        'raster:bands']
+dsi = dsi.drop_vars(drops)
+dsi = dsi.astype('float32')
 
 #%%
-dsi['BSI'].sel(y=lat, x=lon, method='nearest').plot()
+dsi.to_netcdf(f'{path_nc}/{name}_IVs.nc')
+#XXX BSI e NDVI ok, LAI e EVI weird
 
+#%%
+for iv in indices:
+    dsi[iv].to_netcdf(f'{path_nc}/{name}_{iv}.nc')
+
+#%%
+
+
+# %% XXX OS INDICES SAO GERADOS APARENTEMENTE OK
+
+lat = field.geometry.centroid.y.values[0]
+lon = field.geometry.centroid.x.values[0]
+
+for iv in indices:
+    dsi[iv].sel(latitude=lat, longitude=lon, 
+                 method='nearest').plot();plt.grid();plt.show();plt.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#%% IVS Climatology
+Cdsi = dsi.groupby('time.month').mean(skipna=True)
+
+Cdsi.load()
+
+#%%
+%%time
+dsi.load()
+
+#%%
+for iv in indices:
+    Cdsi[iv].sel(y=lat, x=lon, method='nearest').plot()
+    plt.plot(); plt.show()
+
+#%%
+for iv in indices:
+    dsi[iv].sel(y=lat, x=lon, method='nearest').plot()
+    plt.plot(); plt.show()
+
+
+#%%
+print('reprojecting')
+dsir = dsi.rio.write_crs('4326')
+dsir = dsi.rio.reproject('EPSG:4326')
+dsir = dsi.rename({'x': 'longitude','y': 'latitude'})
+
+#%%
+del dsir.attrs
+#%%
+dsir.to_netcdf(f'{path_nc}/{name}_IVs.nc')
 
  #%%
 # INTERPOLATE NANs
