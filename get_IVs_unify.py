@@ -123,8 +123,8 @@ items89 = query_Landsat_items(datetime=datetime,
                                      ])
 
 # %% LOAD BANDS
-indices = ["NDVI","LAI", "EVI", "BSI"]
-assets = ['blue','green','red','nir08','swir16']
+indices = ["NDVI","MSAVI","NDMI","BSI"] # EVI, LAI
+assets = ['blue','green','red','nir08','swir16','swir22']
 # get the data the lazy way
 data89 = (
         stackstac.stack(
@@ -145,6 +145,7 @@ data57 = (
 del data57.attrs['spec']
 
 # %% MATCH REPROJECTION using rioxarray
+print(f'matching datasets ... ')
 ds57 = data57.to_dataset(dim='band')
 ds57 = ds57.rio.write_crs('4326')
 ds89 = data89.to_dataset(dim='band')
@@ -153,7 +154,7 @@ ds89 = ds89.rio.write_crs('4326')
 ds57 = ds57.rio.reproject_match(ds89)
 
 #%% CONCAT DATASETS
-ds = xr.concat([ds89, ds57], dim="time", join='outer')
+ds = xr.concat([ds57, ds89 ], dim="time", join='outer')
 ds = ds.sortby('time')
 
 # REPROJECT
@@ -162,31 +163,70 @@ ds = ds.rio.write_crs('4326')
 ds = ds.rio.reproject('EPSG:4326')
 ds = ds.rename({'x': 'longitude','y': 'latitude'})
 
-#%% rename bands for IVs calculation in Landsat
-ds = ds.rename({'nir08':'nir'})
+#%% clip nodata and run simple diagnostic 
+ds_ = xr.where(ds > 50000, np.nan, ds)
 
-dsi = calculate_indices(ds, 
-                       index= indices, 
-                       satellite_mission='ls', 
-                       drop=True);
+# for var in list(ds.data_vars):
+#     print(var, ds_[var].quantile([.01,.1,.5,.9,.99], skipna=True), '\n')
+
+ #%%
+ %%time
+# INTERPOLATE NANs
+print('interpolating NaNs')
+ds_ = ds_.interpolate_na(dim='time',
+                       method='pchip', 
+                       #limit = 7,
+                       use_coordinate=True)
+
+# %% XXX SMOOTHENING WOULD BE COOL
+%%time
+smooth = True
+w = 4
+sm = 'pchip_smW'+str(w)
+if smooth:
+    print('smoothening...')
+    ds_ = ds_.chunk(dict(time=-1))
+    ds_ = ds_.rolling(time=w, 
+                    center=True).mean(savgol_filter, 
+                                              window = w, 
+                                              polyorder=2)
+
+
+
+
+
+
+
+
+
+#%% CALCULATE INDICES
+ds_ = ds_.rename({'nir08':'nir'})
+dsi = calculate_indices(ds_, 
+                        index= indices, 
+                        satellite_mission='ls',
+                        #normalise=True, 
+                        drop=True);
+dsi
+#%% REPROJECT
+print('reprojecting')
+dsi = dsi.rio.write_crs('4326')
+dsi = dsi.rio.reproject('EPSG:4326')
+dsi = dsi.rename({'x': 'longitude','y': 'latitude'})
 #%%
 # DROPPING STUFF
 drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
         'landsat:collection_number','landsat:wrs_type','instruments',
-        'raster:bands']
+        'raster:bands','sci:doi']
 dsi = dsi.drop_vars(drops)
 dsi = dsi.astype('float32')
 
 #%%
-dsi.to_netcdf(f'{path_nc}/{name}_IVs.nc')
+dsi.to_netcdf(f'{path_nc}/{name}_IVs_fi_smoV6.nc')
 #XXX BSI e NDVI ok, LAI e EVI weird
 
-#%%
-for iv in indices:
-    dsi[iv].to_netcdf(f'{path_nc}/{name}_{iv}.nc')
-
-#%%
-
+# #%%
+# for iv in indices:
+#     dsi[iv].to_netcdf(f'{path_nc}/{name}_{iv}.nc')
 
 # %% XXX OS INDICES SAO GERADOS APARENTEMENTE OK
 
@@ -218,74 +258,32 @@ Cdsi = dsi.groupby('time.month').mean(skipna=True)
 Cdsi.load()
 
 #%%
-%%time
-dsi.load()
+Cdsi.to_netcdf(f'{path_nc}/{name}_IVs_cli.nc')
 
 #%%
 for iv in indices:
-    Cdsi[iv].sel(y=lat, x=lon, method='nearest').plot()
-    plt.plot(); plt.show()
+    Cdsi[iv].sel(latitude=lat, longitude=lon, method='nearest').plot()
+    plt.grid();plt.plot(); plt.show()
 
 #%%
 for iv in indices:
-    dsi[iv].sel(y=lat, x=lon, method='nearest').plot()
-    plt.plot(); plt.show()
+    dsi[iv].sel(latitude=lat, longitude=lon, method='nearest').plot()
+    plt.grid();plt.plot(); plt.show()
 
 
-#%%
-print('reprojecting')
-dsir = dsi.rio.write_crs('4326')
-dsir = dsi.rio.reproject('EPSG:4326')
-dsir = dsi.rename({'x': 'longitude','y': 'latitude'})
-
-#%%
-del dsir.attrs
-#%%
-dsir.to_netcdf(f'{path_nc}/{name}_IVs.nc')
-
- #%%
-# INTERPOLATE NANs
-print('interpolating NaNs')
-da = da.interpolate_na(dim='time',
-                       method='pchip', 
-                       limit = 7,
-                       use_coordinate=True)
-
-# %% XXX SMOOTHENING WOULD BE COOL
-smooth = True
-w = 5
-sm = 'pchip_smW'+str(w)
-if smooth:
-    print('smoothening...')
-    da = da.chunk(dict(time=-1))
-    da = da.rolling(time=w, 
-                    center=True).mean(savgol_filter, 
-                                              window = w, 
-                                              polyorder=2)
-
-# DROPPING STUFF
-drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
-        'landsat:collection_number','landsat:wrs_type','instruments',
-        'raster:bands']
-da = da.drop_vars(drops)
-
-# Save NC
-da.to_netcdf(f'{path_nc}/{name}_LST{sm}.nc')
-print(f'SAVED {path_nc}/{name}_LST{sm}.nc')
 # %%
 if zscores:
     print('calculating zscores')
-    da_mean = da.groupby('time.month').mean(dim='time')
-    da_std = da.groupby('time.month').std(dim='time')
+    dsi_mean = dsi.groupby('time.month').mean(dim='time')
+    dsi_std = dsi.groupby('time.month').std(dim='time')
 
-    da_anom = da.groupby('time.month') - da_mean
-    da_z = da_anom.groupby('time.month') / da_std
+    dsi_anom = dsi.groupby('time.month') - dsi_mean
+    dsi_z = dsi_anom.groupby('time.month') / dsi_std
 
-    da_z.to_netcdf(f'{path_nc}/{name}_Z-LST{sm}.nc')
+    dsi_z.to_netcdf(f'{path_nc}/{name}_Z-{sm}.nc')
     print('zscores saved')
 
 print(f'{time.time()-start} seconds')
-
 
 
 # XXX XXX XXX XXX ... ,,, XXX XXX
@@ -303,7 +301,7 @@ def mask_farm(field,dst):
 
 if savecsv:
     print('Masking farm')
-    dam = mask_farm(field,da)
+    dam = mask_farm(field,dsi)
 
 # %% Create zones for paddocks 
 def farm_zones(field,data,column,ochunk=64):
@@ -362,14 +360,14 @@ def extract_fz_timeseries(dst, data, field, column, path_csv, name, suffix, band
     #             zipMe.write(file, compress_type=zipfile.ZIP_DEFLATED)
 
 # %%
-ds = da.to_dataset()
-extract_fz_timeseries(dams, 
-                      da, 
+#ds = da.to_dataset()
+extract_fz_timeseries(dsi, 
+                      ds, 
                       field, 
-                      'TID', 
+                      'mod_fiscal', 
                       path_csv, 
                       name, 
-                      'allLandsat', 
-                      'lst', 
+                      '_-_', 
+                      'NDVI', 
                       ochunk=64, verbose=False)
 # %%
