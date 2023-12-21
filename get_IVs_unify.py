@@ -54,7 +54,7 @@ from grits import *
 print('all good!')
 # %% DEFINE AREA OF INTEREST
 # =========================
-# # Name for reference
+# %% Uniguiri Farm
 # name = 'Uniguiri_full_'
 
 # # AOI file and layer (for GPKG)
@@ -77,7 +77,8 @@ print('all good!')
 '''
 car = 'MT-5103601-948E6FB555E3445CB7E0538F61483371'
 car = 'MT-5104807-84F5196D22B847C1BD91AA27DB598BC1'
-
+car = 'SP-3548906-AEEFC5ECB2EF42AF9721E496EC7678D9' #Embrapa Pecuaria Sudeste
+car = 'MT-5107941-3E795652613843F98A703C84BCF9CDA6' #Tabapora
 #%%
 if car:
     name = car
@@ -90,8 +91,27 @@ if car:
     print(f'área da fazenda = {field.geometry.to_crs(6933).area.values[0]/10000:.1f} ha')
     field.plot()
 
+#%% Embrapa Sao Carlos
+name = 'embrapa_sanca'
+path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+file = path_vector + 'fazenda_embrapa.gpkg'
+layer = 'talhoes'
+
+# Get FIELD
+field = gpd.read_file(file, layer=layer)
+#field = field[field['Re'] == 80000]
+
+bbox, lat_range, lon_range = get_lims(field)
+print(field.head())
+field.plot(column='tid')
+plt.title(name)
+
+
 # %% Define period and output path
 datetime='1985-01-01/'+str(date.today())
+
+#datetime='1985-01-01/2022-04-01'#+str(date.today())
+# para embrapa sanca deu erro em 2022-04-02
 #datetime='2015-01-01/2017-01-01'
 print(datetime)
 
@@ -154,10 +174,12 @@ ds89 = ds89.rio.write_crs('4326')
 ds57 = ds57.rio.reproject_match(ds89)
 
 #%% CONCAT DATASETS
+%%time
 ds = xr.concat([ds57, ds89 ], dim="time", join='outer')
 ds = ds.sortby('time')
 
 # REPROJECT
+#%%
 print('reprojecting')
 ds = ds.rio.write_crs('4326')
 ds = ds.rio.reproject('EPSG:4326')
@@ -221,7 +243,7 @@ dsi = dsi.drop_vars(drops)
 dsi = dsi.astype('float32')
 
 #%%
-dsi.to_netcdf(f'{path_nc}/{name}_IVs_fi_smoV6.nc')
+dsi.to_netcdf(f'{path_nc}/{name}_IVs.nc')
 #XXX BSI e NDVI ok, LAI e EVI weird
 
 # #%%

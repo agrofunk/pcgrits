@@ -65,22 +65,38 @@ a CAR MT-5103601-948E6FB555E3445CB7E0538F61483371
  
 '''
 #car = 'MT-5103601-948E6FB555E3445CB7E0538F61483371'
-car = 'MT-5104807-84F5196D22B847C1BD91AA27DB598BC1'
-if car:
-    name = car
-    gdf = gpd.read_file('/home/jovyan/PlanetaryComputerExamples/vetorial/CAR/MT_CAR_AREA_IMOVEL_.gpkg')
-    field = gdf[gdf['cod_imovel'] == name]
+# car = 'MT-5104807-84F5196D22B847C1BD91AA27DB598BC1'
+# if car:
+#     name = car
+#     gdf = gpd.read_file('/home/jovyan/PlanetaryComputerExamples/vetorial/CAR/MT_CAR_AREA_IMOVEL_.gpkg')
+#     field = gdf[gdf['cod_imovel'] == name]
 
-    bbox, lat_range, lon_range = get_lims(field)
-    print(field.head())
-    del gdf
-    field.plot()
+#     bbox, lat_range, lon_range = get_lims(field)
+#     print(field.head())
+#     del gdf
+#     field.plot()
 
+#%% EMBRAPA SANCA
+name = 'embrapa_sanca2'
+path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+file = path_vector + 'fazenda_embrapa.gpkg'
+layer = 'talhoes'
 
+# Get FIELD
+field = gpd.read_file(file, layer=layer)
+#field = field[field['Re'] == 80000]
+
+bbox, lat_range, lon_range = get_lims(field)
+print(field.head())
+field.plot(column='tid')
+plt.title(name)
 
 # %% Define period and output path
 # Landsat 4,5,7 have 'lwir' and 8 and 9 have 'lwir11'
 datetime='1985-01-01/'+str(date.today())
+#datetime='1985-01-01/2022-04-01'#+str(date.today())
+datetime='2022-11-25/'+str(date.today())
+
 print(datetime)
 
 # Parameters to save raster data?
@@ -181,7 +197,7 @@ drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
         'raster:bands']
 da = da.drop_vars(drops)
 
-# Save NC
+#%% Save NC
 da.to_netcdf(f'{path_nc}/{name}_LST{sm}.nc')
 print(f'SAVED {path_nc}/{name}_LST{sm}.nc')
 # %%
