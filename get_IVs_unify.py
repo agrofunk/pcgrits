@@ -92,7 +92,7 @@ if car:
     field.plot()
 
 #%% Embrapa Sao Carlos
-name = 'embrapa_sanca'
+name = 'embrapa_saocarlos'
 path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
 file = path_vector + 'fazenda_embrapa.gpkg'
 layer = 'talhoes'
@@ -109,8 +109,7 @@ plt.title(name)
 
 # %% Define period and output path
 datetime='1985-01-01/'+str(date.today())
-
-#datetime='1985-01-01/2022-04-01'#+str(date.today())
+datetime='1985-01-01/2022-04-01'#+str(date.today())
 # para embrapa sanca deu erro em 2022-04-02
 #datetime='2015-01-01/2017-01-01'
 print(datetime)
@@ -126,7 +125,7 @@ column = 'TID'
 path_csv = '/home/jovyan/PlanetaryComputerExamples/OUT/csv/'
 
 # some parameters to filter scenes
-max_cloud = 70
+max_cloud = 30
 # %% QUERY LANDSAT
 items57 = query_Landsat_items(datetime=datetime,
                          bbox=bbox,
@@ -143,7 +142,7 @@ items89 = query_Landsat_items(datetime=datetime,
                                      ])
 
 # %% LOAD BANDS
-indices = ["NDVI","MSAVI","NDMI","BSI"] # EVI, LAI
+indices = ["NDVI","LAI","BSI","MSAVI","NDMI"] # EVI, LAI
 assets = ['blue','green','red','nir08','swir16','swir22']
 # get the data the lazy way
 data89 = (
@@ -186,7 +185,7 @@ ds = ds.rio.reproject('EPSG:4326')
 ds = ds.rename({'x': 'longitude','y': 'latitude'})
 
 #%% clip nodata and run simple diagnostic 
-ds_ = xr.where(ds > 50000, np.nan, ds)
+ds_ = xr.where(ds > 60000, np.nan, ds)
 
 # for var in list(ds.data_vars):
 #     print(var, ds_[var].quantile([.01,.1,.5,.9,.99], skipna=True), '\n')
@@ -222,6 +221,7 @@ if smooth:
 
 
 #%% CALCULATE INDICES
+%%time    
 ds_ = ds_.rename({'nir08':'nir'})
 dsi = calculate_indices(ds_, 
                         index= indices, 

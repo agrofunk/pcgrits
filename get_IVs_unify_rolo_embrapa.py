@@ -65,48 +65,46 @@ print('all good!')
 # car = 'MT-5104807-84F5196D22B847C1BD91AA27DB598BC1'
 # car = 'SP-3548906-AEEFC5ECB2EF42AF9721E496EC7678D9' #Embrapa Pecuaria Sudeste
 
-car = 'MT-5107941-3E795652613843F98A703C84BCF9CDA6' #Tabapora
+# car = 'MT-5107941-3E795652613843F98A703C84BCF9CDA6' #Tabapora
 
 #%%
-if car:
-    name = car
-    gdf = gpd.read_file('/home/jovyan/PlanetaryComputerExamples/vetorial/CAR/MT_CAR_AREA_IMOVEL_.gpkg')
-    field = gdf[gdf['cod_imovel'] == name]
+# if car:
+#     name = car
+#     gdf = gpd.read_file('/home/jovyan/PlanetaryComputerExamples/vetorial/CAR/MT_CAR_AREA_IMOVEL_.gpkg')
+#     field = gdf[gdf['cod_imovel'] == name]
 
-    bbox, lat_range, lon_range = get_lims(field)
-    print(field.head())
-    del gdf
-    print(f'área da fazenda = {field.geometry.to_crs(6933).area.values[0]/10000:.1f} ha')
-    field.plot()
+#     bbox, lat_range, lon_range = get_lims(field)
+#     print(field.head())
+#     del gdf
+#     print(f'área da fazenda = {field.geometry.to_crs(6933).area.values[0]/10000:.1f} ha')
+#     field.plot()
 
-# #%% Embrapa Sao Carlos
-# path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
-# file = path_vector + 'fazenda_embrapa.gpkg'
-# layer = 'talhoes'
+#%% Embrapa Sao Carlos
+path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+file = path_vector + 'fazenda_embrapa.gpkg'
+layer = 'talhoes'
 
-# # Get FIELD
-# field = gpd.read_file(file, layer=layer)
-# #field = field[field['Re'] == 80000]
+# Get FIELD
+field = gpd.read_file(file, layer=layer)
+#field = field[field['Re'] == 80000]
 
-# bbox, lat_range, lon_range = get_lims(field)
-# print(field.head())
-# field.plot(column='tid')
-# plt.title(name)
+bbox, lat_range, lon_range = get_lims(field)
+print(field.head())
+field.plot(column='tid')
 
 
 # %% Define period and output path
 # 2022-04-02, '2022-11-10' - embrapa sanca
 # '2022-07-01' - tabapora mt
-name = 'embrapa_sanca3' 
-name = car
-dt1 = '1985-01-01'
-#dt1 = '2022-11-10'
-dt2 = '2022-07-01'
+name = 'embrapa_saocarlos' 
+#dt1 = '1985-01-01'
+dt1 = '2020-11-10'
+dt2 = '2022-04-01'
 
-dt1 = '2022-11-15'
+#dt1 = '2022-11-15'
 #dt2 = '2022-10-28'
 
-dt2 = str(date.today())
+#dt2 = str(date.today())
 
 datetime = dt1 + '/' + dt2
 
@@ -140,7 +138,7 @@ items89 = query_Landsat_items(datetime=datetime,
                                      ])
 
 # %% LOAD BANDS
-indices = ["NDVI","MSAVI","NDMI","BSI"] # EVI, LAI
+indices = ["NDVI","MSAVI","NDMI","BSI","LAI"] # EVI, LAI
 assets = ['blue','green','red','nir08','swir16','swir22']
 # get the data the lazy way
 data89 = (
@@ -224,12 +222,6 @@ if smooth:
 
 
 
-
-
-
-
-
-
 #%% CALCULATE INDICES
 ds = ds.rename({'nir08':'nir'})
 dsi = calculate_indices(ds, 
@@ -237,7 +229,6 @@ dsi = calculate_indices(ds,
                         satellite_mission='ls',
                         #normalise=True, 
                         drop=True);
-dsi
 #%% REPROJECT
 print('reprojecting')
 dsi = dsi.rio.write_crs('4326')
@@ -253,7 +244,7 @@ drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
 dsi = dsi.drop_vars(drops)
 
 #%%
-dsi.to_netcdf(f'{path_nc}/{name}_IV_{dt1}_{dt2}.nc')
+dsi.to_netcdf(f'{path_nc}/{dt1}_{dt2}_{iv}_{name}_.nc')
 #XXX BSI e NDVI ok, LAI e EVI weird
 
 # #%%
@@ -261,7 +252,6 @@ dsi.to_netcdf(f'{path_nc}/{name}_IV_{dt1}_{dt2}.nc')
 #     dsi[iv].to_netcdf(f'{path_nc}/{name}_{iv}.nc')
 
 # %% XXX OS INDICES SAO GERADOS APARENTEMENTE OK
-
 lat = field.geometry.centroid.y.values[0]
 lon = field.geometry.centroid.x.values[0]
 
@@ -271,7 +261,7 @@ for iv in indices:
 
 
 
-
+#%%
 
 
 

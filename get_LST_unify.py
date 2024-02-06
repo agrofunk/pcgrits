@@ -26,6 +26,7 @@ else:
     print(f'Required packages {required} already installed.')
 
 import geopandas as gpd
+import pylab as plt
 import stackstac
 import xarray as xr
 import numpy as np
@@ -77,23 +78,33 @@ a CAR MT-5103601-948E6FB555E3445CB7E0538F61483371
 #     field.plot()
 
 #%% EMBRAPA SANCA
-name = 'embrapa_sanca2'
-path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
-file = path_vector + 'fazenda_embrapa.gpkg'
-layer = 'talhoes'
+# name = 'embrapa_sanca2'
+# path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+# file = path_vector + 'fazenda_embrapa.gpkg'
+# layer = 'talhoes'
+# field = gpd.read_file(file, layer=layer)
+
+#%% Belem PA
+name = 'Belem2'
+path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/'
+file = path_vector + 'belem.gpkg'
+field = gpd.read_file(file)
+
+
+
 
 # Get FIELD
-field = gpd.read_file(file, layer=layer)
+
 #field = field[field['Re'] == 80000]
 
 bbox, lat_range, lon_range = get_lims(field)
 print(field.head())
-field.plot(column='tid')
+field.plot()#column='tid'
 plt.title(name)
 
 # %% Define period and output path
 # Landsat 4,5,7 have 'lwir' and 8 and 9 have 'lwir11'
-datetime='1985-01-01/'+str(date.today())
+#datetime='1985-01-01/'+str(date.today())
 #datetime='1985-01-01/2022-04-01'#+str(date.today())
 datetime='2022-11-25/'+str(date.today())
 
