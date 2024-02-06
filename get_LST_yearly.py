@@ -1,6 +1,7 @@
-
 #%%
-import pylab as plt
+import time
+start = time.time()
+
 from datetime import date
 import sys
 import subprocess
@@ -17,6 +18,7 @@ else:
     print(f'Required packages {required} already installed.')
 
 import geopandas as gpd
+import pylab as plt
 import stackstac
 import xarray as xr
 import numpy as np
@@ -30,144 +32,133 @@ import numpy as np
 sys.path.append('/home/jovyan/PlanetaryComputerExamples/CODE/pcgrits/')
 from grits import *
 
-print('all good!')
 
 
-
-
-#%% Embrapa Sao Carlos
+name = 'embrapa_sc'
 path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
 file = path_vector + 'fazenda_embrapa.gpkg'
 layer = 'talhoes'
-
-# Get FIELD
 field = gpd.read_file(file, layer=layer)
-#field = field[field['Re'] == 80000]
+
 
 bbox, lat_range, lon_range = get_lims(field)
 print(field.head())
-field.plot(column='tid')
+field.plot()#column='tid'
+plt.title(name)
 
-# to save
+
 savenc = True
 zscores = True
 path_nc = '/home/jovyan/PlanetaryComputerExamples/OUT/nc/'
+
 # parameters for extracting data
 savecsv = True
 column = 'TID'
 path_csv = '/home/jovyan/PlanetaryComputerExamples/OUT/csv/'
 
-# some parameters to filter scenes
-max_cloud = 70
-
-name = 'embrapa_sc' 
 
 
 
-indices = ["NDVI","MSAVI","NDMI","BSI"] # EVI, LAI
-assets = ['blue','green','red','nir08','swir16','swir22']
 
-# %%
-###    THE FUCKING for
-###
 
-for ano in range(2022,2023):
-    dt1 = str(ano)+'-11-15'
+# %% QUERY LANDSAT
+
+max_cloud = 50
+for ano in range(1985,2025,1):
+    dt1 = str(ano)+'-06-20'
     dt2 = str(ano+1)+'-06-20'
-
     datetime = dt1 + '/' + dt2
     print(datetime)
-    # get items
+
     items57 = query_Landsat_items(datetime=datetime,
-                         bbox=bbox,
-                         max_cloud=max_cloud,
-                         landsats = [
-                             "landsat-5", "landsat-7",
-                                     ])
-    
+                            bbox=bbox,
+                            max_cloud=max_cloud,
+                            landsats = [
+                                "landsat-5", "landsat-7",
+                                        ])
+    print('items57 created')
     items89 = query_Landsat_items(datetime=datetime,
                             bbox=bbox,
                             max_cloud=max_cloud,
                             landsats = [
                                     "landsat-8", "landsat-9"
                                         ])
-
-    # get Data
+    print('items89 created')
+    # get the data the lazy way
     data89 = (
             stackstac.stack(
             items89,
-            assets=assets,
+            assets=['lwir11'],
             bounds_latlon=bbox,
             epsg=4326, 
-            ))
-    del data89.attrs['spec']
-
+            resolution=100
+        ))
+    print('data89 ok!')
     data57 = (
             stackstac.stack(
             items57,
-            assets=assets,
+            assets=['lwir'],
             bounds_latlon=bbox,
             epsg=4326, 
+            resolution=100
         ))
-    del data57.attrs['spec']
+    print('data57 ok!')
+    # %% The CONCAT Way
+    # SQUEEZE monoBAND
+    data89 = data89.rename('lwir').squeeze()
+    data57 = data57.rename('lwir').squeeze()
 
-    # Match, Repro, Concat
-    print(f'matching datasets ... ')
-    ds57 = data57.to_dataset(dim='band')
-    ds57 = ds57.rio.write_crs('4326')
-    ds89 = data89.to_dataset(dim='band')
-    ds89 = ds89.rio.write_crs('4326')
+    # MATCH REPROJECTION using rioxarray
+    print(f'matching DataArrays spatially for _{datetime}')
+    data57 = data57.rio.reproject_match(data89)
 
-    ds57 = ds57.rio.reproject_match(ds89)
+    # CONCATENATE DATAARRAYS
+    da = xr.concat([data89, data57], dim="time", join='outer')
 
-    ds = xr.concat([ds57, ds89 ], dim="time", join='outer')
-    ds = ds.sortby('time')
-    ds = ds.chunk(dict(time=-1))
+    # RESCALE AND FILTER FOR LAND SURFACE TEMPERATURE
+    print('reescaling LST')
+    scale = items89[0].assets['lwir11'].extra_fields["raster:bands"][0]['scale']
+    offset = items89[0].assets['lwir11'].extra_fields["raster:bands"][0]['offset']
+    da = da*scale + offset - 273.15
+    da = da.astype('float32')
+    da = xr.where((da < -5) | (da > 65), np.nan, da)
 
-    # data wrangling
-    ds = xr.where(ds > 65000, np.nan, ds)
+    # REPROJECT
+    print(f'reprojecting_{datetime}')
+    da = da.rio.write_crs('4326')
+    da = da.rio.reproject('EPSG:4326')
+    da = da.rename({'x': 'longitude','y': 'latitude'})
 
+    # REORDER
+    da = da.rename('lst')
+    da = da.sortby('time')
+
+    # INTERPOLATE NANs
     print('interpolating NaNs')
-    ds = ds.interpolate_na(dim='time',
-                       method='pchip',  #pchip
-                       #limit = 7,
-                       use_coordinate=True)
+    da = da.interpolate_na(dim='time',
+                        method='pchip', 
+                        limit = 7,
+                        use_coordinate=True)
 
+    # %% XXX SMOOTHENING WOULD BE COOL
     smooth = True
-    w = 4
-    sm = 'pchip_w'+str(w)
+    w = 7
+    sm = 'pchip_'+str(w)
     if smooth:
         print('smoothening...')
-        ds = ds.rolling(time=w, 
+        da = da.chunk(dict(time=-1))
+        da = da.rolling(time=w, 
                         center=True).mean(savgol_filter, 
                                                 window = w, 
                                                 polyorder=2)
 
-    # CALCULATE INDICES
-    ds = ds.rename({'nir08':'nir'})
-    dsi = calculate_indices(ds, 
-                            index= indices, 
-                            satellite_mission='ls',
-                            drop=True)
-    
-    print('reprojecting')
-    dsi = dsi.rio.write_crs('4326')
-    dsi = dsi.rio.reproject('EPSG:4326')
-    dsi = dsi.rename({'x': 'longitude','y': 'latitude'})
-
     # DROPPING STUFF
-    dsi = dsi.astype('float32')
-
     drops = ['landsat:correction','landsat:wrs_path','landsat:wrs_row',
             'landsat:collection_number','landsat:wrs_type','instruments',
-            'raster:bands','sci:doi']
-    dsi = dsi.drop_vars(drops)
+            'raster:bands']
+    da = da.drop_vars(drops)
 
     #SAVE
     print('saving...')
-    dsi.to_netcdf(f'{path_nc}/{dt1}_{dt2}_{name}.nc')
-    print(f'{path_nc}/{dt1}_{dt2}_{name}.nc saved')
-
-    del dsi, ds, ds57, data57, items57, ds89, data89, items89
-
-# %%
+    da.to_netcdf(f'{path_nc}/{dt1}_{dt2}_{name}_LST_{sm}.nc')
+    print(f'{path_nc}/{dt1}_{dt2}_{name}_LST_{sm}.nc')

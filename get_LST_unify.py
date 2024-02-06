@@ -78,17 +78,17 @@ a CAR MT-5103601-948E6FB555E3445CB7E0538F61483371
 #     field.plot()
 
 #%% EMBRAPA SANCA
-# name = 'embrapa_sanca2'
-# path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
-# file = path_vector + 'fazenda_embrapa.gpkg'
-# layer = 'talhoes'
-# field = gpd.read_file(file, layer=layer)
+name = 'embrapa_sc'
+path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
+file = path_vector + 'fazenda_embrapa.gpkg'
+layer = 'talhoes'
+field = gpd.read_file(file, layer=layer)
 
 #%% Belem PA
-name = 'Belem2'
-path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/'
-file = path_vector + 'belem.gpkg'
-field = gpd.read_file(file)
+# name = 'Belem2'
+# path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/'
+# file = path_vector + 'belem.gpkg'
+# field = gpd.read_file(file)
 
 
 
@@ -302,7 +302,7 @@ def extract_fz_timeseries(dst, data, field, column, path_csv, name, suffix, band
 
 # %%
 ds = da.to_dataset()
-extract_fz_timeseries(dams, 
+extract_fz_timeseries(ds, 
                       da, 
                       field, 
                       'TID', 
