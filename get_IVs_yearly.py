@@ -60,7 +60,7 @@ path_csv = '/home/jovyan/PlanetaryComputerExamples/OUT/csv/'
 # some parameters to filter scenes
 max_cloud = 70
 
-name = 'embrapa_sc' 
+name = 'embrapa_sc_testeyearly' 
 
 
 
