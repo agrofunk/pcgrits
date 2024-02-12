@@ -57,27 +57,6 @@ print('all good!')
 # =========================
 
 # %% THE CAR WAY
-'''
- XXX ler o gpkg do MT leva 30 segundos, não está bom
- 
-'''
-# car = 'MT-5103601-948E6FB555E3445CB7E0538F61483371'
-# car = 'MT-5104807-84F5196D22B847C1BD91AA27DB598BC1'
-# car = 'SP-3548906-AEEFC5ECB2EF42AF9721E496EC7678D9' #Embrapa Pecuaria Sudeste
-
-# car = 'MT-5107941-3E795652613843F98A703C84BCF9CDA6' #Tabapora
-
-#%%
-# if car:
-#     name = car
-#     gdf = gpd.read_file('/home/jovyan/PlanetaryComputerExamples/vetorial/CAR/MT_CAR_AREA_IMOVEL_.gpkg')
-#     field = gdf[gdf['cod_imovel'] == name]
-
-#     bbox, lat_range, lon_range = get_lims(field)
-#     print(field.head())
-#     del gdf
-#     print(f'área da fazenda = {field.geometry.to_crs(6933).area.values[0]/10000:.1f} ha')
-#     field.plot()
 
 #%% Embrapa Sao Carlos
 path_vector = '/home/jovyan/PlanetaryComputerExamples/vetorial/FAZENDAS/'
@@ -91,7 +70,6 @@ field = gpd.read_file(file, layer=layer)
 bbox, lat_range, lon_range = get_lims(field)
 print(field.head())
 field.plot(column='tid')
-
 
 # %% Define period and output path
 # 2022-04-02, '2022-11-10' - embrapa sanca
@@ -262,18 +240,6 @@ for iv in indices:
 
 
 #%%
-
-
-
-
-
-
-
-
-
-
-
-
 # #%% IVS Climatology
 # Cdsi = dsi.groupby('time.month').mean(skipna=True)
 

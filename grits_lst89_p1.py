@@ -9,9 +9,6 @@
 
 '''
 
-
-
-
 #%%
 import time
 from datetime import date
