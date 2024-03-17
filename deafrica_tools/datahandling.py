@@ -77,9 +77,7 @@ def load_ard(
     dc,
     products=None,
     min_gooddata=0.0,
-    categories_to_mask_ls=dict(
-        cloud="high_confidence", cloud_shadow="high_confidence"
-    ),
+    categories_to_mask_ls=dict(cloud="high_confidence", cloud_shadow="high_confidence"),
     categories_to_mask_s2=[
         "cloud high probability",
         "cloud medium probability",
@@ -253,11 +251,11 @@ def load_ard(
             "Sentinel-2: ['s2_l2a'], or"
             "Sentinel-1: ['s1_rtc'], or"
         )
-    
+
     # convert products to list if user passed as a string
     if type(products) == str:
-        products=[products]
-    
+        products = [products]
+
     if all(["ls" in product for product in products]):
         product_type = "ls"
     elif all(["s2" in product for product in products]):
@@ -273,16 +271,12 @@ def load_ard(
     # Check some parameters before proceeding
     if (product_type == "ls") & (dtype == "native"):
         raise ValueError(
-            "Cannot load Landsat bands in native dtype "
-            "as values require rescaling which converts dtype to float"
+            "Cannot load Landsat bands in native dtype " "as values require rescaling which converts dtype to float"
         )
 
     if product_type == "ls":
         if any(k in categories_to_mask_ls for k in ("cirrus", "cirrus_confidence")):
-            raise ValueError(
-                "'cirrus' categories for the pixel quality mask"
-                " are not supported by load_ard"
-            )
+            raise ValueError("'cirrus' categories for the pixel quality mask" " are not supported by load_ard")
 
     # If `measurements` are specified but do not include pixel quality bands,
     #  add these to `measurements` according to collection
@@ -323,7 +317,6 @@ def load_ard(
 
     if measurements is not None:
         if product_type == "ls":
-
             # check we aren't loading aerosol bands from LS8
             aerosol_bands = [
                 "aerosol_qa",
@@ -345,8 +338,7 @@ def load_ard(
             else:
                 raise ValueError(
                     "load_ard does not support all band aliases for Landsat, "
-                    "use only the following band names to load Landsat data: "
-                    + str(ls_aliases)
+                    "use only the following band names to load Landsat data: " + str(ls_aliases)
                 )
 
     # Deal with "load all" case: pick a set of bands common across
@@ -364,11 +356,7 @@ def load_ard(
 
     # Get list of data and mask bands so that we can later exclude
     # mask bands from being masked themselves (also handle the case of rad_sat)
-    data_bands = [
-        band
-        for band in measurements
-        if band not in (fmask_band, "radiometric_saturation")
-    ]
+    data_bands = [band for band in measurements if band not in (fmask_band, "radiometric_saturation")]
     mask_bands = [band for band in measurements if band not in data_bands]
 
     #################
@@ -385,7 +373,6 @@ def load_ard(
     if verbose:
         print("Finding datasets")
     for product in products:
-
         # Obtain list of datasets for product
         if verbose:
             print(f"    {product}")
@@ -393,9 +380,7 @@ def load_ard(
         if product_type == "ls":
             # handle LS seperately to S2/S1 due to collection_category
             # force the user to load Tier 1
-            datasets = dc.find_datasets(
-                product=product, collection_category='T1', **query
-            )
+            datasets = dc.find_datasets(product=product, collection_category="T1", **query)
         else:
             datasets = dc.find_datasets(product=product, **query)
 
@@ -403,11 +388,7 @@ def load_ard(
         if not ls7_slc_off and product in ["ls7_sr"]:
             if verbose:
                 print("    Ignoring SLC-off observations for ls7")
-            datasets = [
-                i
-                for i in datasets
-                if i.time.begin < datetime.datetime(2003, 5, 31, tzinfo=pytz.UTC)
-            ]
+            datasets = [i for i in datasets if i.time.begin < datetime.datetime(2003, 5, 31, tzinfo=pytz.UTC)]
 
         # Add any returned datasets to list
         dataset_list.extend(datasets)
@@ -454,49 +435,41 @@ def load_ard(
 
     # collection 2 USGS
     if product_type == "ls":
-        mask, _ = masking.create_mask_value(
-            ds[fmask_band].attrs["flags_definition"], **categories_to_mask_ls
-        )
-        
-        pq_mask = (ds[fmask_band] & mask) != 0
-        
-        # only run if data bands are present 
-        if len(data_bands) > 0: 
-            
-        # identify pixels that will become negative after rescaling (but not 0 values)
-            invalid = (
-                    ((ds[data_bands] < (-1.0 * -0.2 / 0.0000275)) & (ds[data_bands] > 0))
-                    .to_array(dim="band")
-                    .any(dim="band")
-                    )
+        mask, _ = masking.create_mask_value(ds[fmask_band].attrs["flags_definition"], **categories_to_mask_ls)
 
-        #merge masks
+        pq_mask = (ds[fmask_band] & mask) != 0
+
+        # only run if data bands are present
+        if len(data_bands) > 0:
+            # identify pixels that will become negative after rescaling (but not 0 values)
+            invalid = (
+                ((ds[data_bands] < (-1.0 * -0.2 / 0.0000275)) & (ds[data_bands] > 0))
+                .to_array(dim="band")
+                .any(dim="band")
+            )
+
+        # merge masks
         pq_mask = np.logical_or(pq_mask, pq_mask)
 
     # sentinel 2
     if product_type == "s2":
-        pq_mask = odc.algo.enum_to_bool(mask=ds[fmask_band],
-                                        categories=categories_to_mask_s2)
-        
+        pq_mask = odc.algo.enum_to_bool(mask=ds[fmask_band], categories=categories_to_mask_s2)
+
     # sentinel 1
     if product_type == "s1":
-        pq_mask = odc.algo.enum_to_bool(mask=ds[fmask_band],
-                                        categories=categories_to_mask_s1)
+        pq_mask = odc.algo.enum_to_bool(mask=ds[fmask_band], categories=categories_to_mask_s1)
 
     # The good data percentage calculation has to load in all `fmask`
     # data, which can be slow. If the user has chosen no filtering
     # by using the default `min_gooddata = 0`, we can skip this step
     # completely to save processing time
     if min_gooddata > 0.0:
-
         # Compute good data for each observation as % of total pixels.
         # Inveerting the pq_mask for this because cloud=True in pq_mask
         # and we want to sum good pixels
         if verbose:
             print("Counting good quality pixels for each time step")
-        data_perc = (~pq_mask).sum(axis=[1, 2], dtype="int32") / (
-            pq_mask.shape[1] * pq_mask.shape[2]
-        )
+        data_perc = (~pq_mask).sum(axis=[1, 2], dtype="int32") / (pq_mask.shape[1] * pq_mask.shape[2])
 
         keep = (data_perc >= min_gooddata).persist()
 
@@ -533,16 +506,16 @@ def load_ard(
     # should only be applied to data bands
     ds_data = ds[data_bands]
     ds_masks = ds[mask_bands]
-    
+
     # Remove sentinel-2 pixels valued 1 (scene edges, terrain shadow)
     if product_type == "s2":
         valid_data_mask = (ds_data > 1).to_array(dim="band").all(dim="band")
-        ds_data =  odc.algo.keep_good_only(ds_data, where=valid_data_mask)
-        
+        ds_data = odc.algo.keep_good_only(ds_data, where=valid_data_mask)
+
     # Mask data if either of the above masks were generated
     if mask is not None:
         ds_data = odc.algo.erase_bad(ds_data, where=mask)
-    
+
     # Automatically set dtype to either native or float32 depending
     # on whether masking was requested
     if dtype == "auto":
@@ -621,9 +594,7 @@ def load_ard(
         return ds.compute()
 
 
-def array_to_geotiff(
-    fname, data, geo_transform, projection, nodata_val=0, dtype=gdal.GDT_Float32
-):
+def array_to_geotiff(fname, data, geo_transform, projection, nodata_val=0, dtype=gdal.GDT_Float32):
     """
     Create a single band GeoTIFF file with data from an array.
 
@@ -729,7 +700,6 @@ def mostcommon_crs(dc, product, query):
 
     # Warn user if multiple CRSs are encountered
     if len(crs_counts.keys()) > 1:
-
         warnings.warn(
             f"Multiple UTM zones {list(crs_counts.keys())} "
             f"were returned for this query. Defaulting to "
@@ -781,10 +751,7 @@ def download_unzip(url, output_dir=None, remove_zip=True):
     # Extract into output_dir
     with zipfile.ZipFile(zip_name, "r") as zip_ref:
         zip_ref.extractall(output_dir)
-        print(
-            f"Unzipping output files to: "
-            f"{output_dir if output_dir else os.getcwd()}"
-        )
+        print(f"Unzipping output files to: " f"{output_dir if output_dir else os.getcwd()}")
 
     # Optionally cleanup
     if remove_zip:
@@ -845,9 +812,7 @@ def dilate(array, dilation=10, invert=True):
     if invert:
         array = ~array
 
-    return ~binary_dilation(
-        array.astype(np.bool), structure=kernel.reshape((1,) + kernel.shape)
-    )
+    return ~binary_dilation(array.astype(np.bool), structure=kernel.reshape((1,) + kernel.shape))
 
 
 def _select_along_axis(values, idx, axis):
@@ -916,9 +881,7 @@ def last(array: xr.DataArray, dim: str, index_name: str = None) -> xr.DataArray:
     return reduced
 
 
-def nearest(
-    array: xr.DataArray, dim: str, target, index_name: str = None
-) -> xr.DataArray:
+def nearest(array: xr.DataArray, dim: str, target, index_name: str = None) -> xr.DataArray:
     """
     Finds the nearest values to a target label along the given dimension, for
     all other dimensions.
@@ -973,9 +936,7 @@ def nearest(
     nearest_array = xr.where(is_before_closer, da_before, da_after)
     nearest_array[dim] = xr.where(is_before_closer, da_before[dim], da_after[dim])
     if index_name is not None:
-        nearest_array[index_name] = xr.where(
-            is_before_closer, da_before[index_name], da_after[index_name]
-        )
+        nearest_array[index_name] = xr.where(is_before_closer, da_before[index_name], da_after[index_name])
     return nearest_array
 
 
@@ -999,19 +960,13 @@ def pan_sharpen_brovey(band_1, band_2, band_3, pan_band):
         pan-sharpened to the spatial resolution of `pan_band`.
     """
     # Calculate total
-    exp = 'band_1 + band_2 + band_3'
+    exp = "band_1 + band_2 + band_3"
     total = numexpr.evaluate(exp)
 
     # Perform Brovey Transform in form of: band/total*panchromatic
-    exp = 'a/b*c'
-    band_1_sharpen = numexpr.evaluate(exp, local_dict={'a': band_1,
-                                                       'b': total,
-                                                       'c': pan_band})
-    band_2_sharpen = numexpr.evaluate(exp, local_dict={'a': band_2,
-                                                       'b': total,
-                                                       'c': pan_band})
-    band_3_sharpen = numexpr.evaluate(exp, local_dict={'a': band_3,
-                                                       'b': total,
-                                                       'c': pan_band})
+    exp = "a/b*c"
+    band_1_sharpen = numexpr.evaluate(exp, local_dict={"a": band_1, "b": total, "c": pan_band})
+    band_2_sharpen = numexpr.evaluate(exp, local_dict={"a": band_2, "b": total, "c": pan_band})
+    band_3_sharpen = numexpr.evaluate(exp, local_dict={"a": band_3, "b": total, "c": pan_band})
 
     return band_1_sharpen, band_2_sharpen, band_3_sharpen

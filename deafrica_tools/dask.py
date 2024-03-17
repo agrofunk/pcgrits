@@ -10,13 +10,7 @@ from datacube.utils.dask import start_local_dask
 from datacube.utils.rio import configure_s3_access
 
 
-def create_local_dask_cluster(
-    spare_mem="3Gb",
-    aws_unsigned=True,
-    display_client=True,
-    return_client=False,
-    **kwargs
-):
+def create_local_dask_cluster(spare_mem="3Gb", aws_unsigned=True, display_client=True, return_client=False, **kwargs):
     """
     Using the datacube utils function 'start_local_dask', generate
     a local dask cluster.
@@ -52,12 +46,7 @@ def create_local_dask_cluster(
 
     # configure dashboard link to go over proxy
     dask.config.set(
-        {
-            "distributed.dashboard.link": os.environ.get(
-                "JUPYTERHUB_SERVICE_PREFIX", "/"
-            )
-            + "proxy/{port}/status"
-        }
+        {"distributed.dashboard.link": os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "/") + "proxy/{port}/status"}
     )
 
     # start up a local cluster
@@ -69,8 +58,8 @@ def create_local_dask_cluster(
     # Show the dask cluster settings
     if display_client:
         display(client)
-        
-    #return the client as an object
+
+    # return the client as an object
     if return_client:
         return client
 

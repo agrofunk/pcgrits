@@ -7,7 +7,8 @@ Coastal analyses on Digital Earth Africa data.
 # Force GeoPandas to use Shapely instead of PyGEOS
 # In a future release, GeoPandas will switch to using Shapely by default.
 import os
-os.environ['USE_PYGEOS'] = '0'
+
+os.environ["USE_PYGEOS"] = "0"
 
 import requests
 import numpy as np
@@ -24,10 +25,11 @@ from owslib.wfs import WebFeatureService
 
 # Fix converters for tidal plot
 from pandas.plotting import register_matplotlib_converters
+
 register_matplotlib_converters()
 
 
-# URL for the DE Africa Coastlines data on Geoserver. 
+# URL for the DE Africa Coastlines data on Geoserver.
 WFS_ADDRESS = "https://geoserver.digitalearth.africa/geoserver/wfs"
 
 
@@ -89,20 +91,11 @@ def tidal_tag(
     # If custom tide modelling locations are not provided, use the
     # dataset centroid
     if not tidepost_lat or not tidepost_lon:
-
-        tidepost_lon, tidepost_lat = ds.extent.centroid.to_crs(
-            crs=CRS("EPSG:4326")
-        ).coords[0]
-        print(
-            f"Setting tide modelling location from dataset centroid: "
-            f"{tidepost_lon:.2f}, {tidepost_lat:.2f}"
-        )
+        tidepost_lon, tidepost_lat = ds.extent.centroid.to_crs(crs=CRS("EPSG:4326")).coords[0]
+        print(f"Setting tide modelling location from dataset centroid: " f"{tidepost_lon:.2f}, {tidepost_lat:.2f}")
 
     else:
-        print(
-            f"Using user-supplied tide modelling location: "
-            f"{tidepost_lon:.2f}, {tidepost_lat:.2f}"
-        )
+        print(f"Using user-supplied tide modelling location: " f"{tidepost_lon:.2f}, {tidepost_lat:.2f}")
 
     # Use the tidal model to compute tide heights for each observation:
     obs_datetimes = ds.time.data.astype("M8[s]").astype("O").tolist()
@@ -112,7 +105,6 @@ def tidal_tag(
     # If tides cannot be successfully modeled (e.g. if the centre of the
     # xarray dataset is located is over land), raise an exception
     if len(obs_predictedtides) > 0:
-
         # Extract tide heights
         obs_tideheights = [predictedtide.tide_m for predictedtide in obs_predictedtides]
 
@@ -121,24 +113,20 @@ def tidal_tag(
 
         # Optionally calculate the tide phase for each observation
         if ebb_flow:
-
             # Model tides for a time 15 minutes prior to each previously
             # modelled satellite acquisition time. This allows us to compare
             # tide heights to see if they are rising or falling.
             print("Modelling tidal phase (e.g. ebb or flow)")
             pre_times = ds.time - pd.Timedelta("15 min")
             pre_datetimes = pre_times.data.astype("M8[s]").astype("O").tolist()
-            pre_timepoints = [
-                TimePoint(tidepost_lon, tidepost_lat, dt) for dt in pre_datetimes
-            ]
+            pre_timepoints = [TimePoint(tidepost_lon, tidepost_lat, dt) for dt in pre_datetimes]
             pre_predictedtides = predict_tide(pre_timepoints)
 
             # Compare tides computed for each timestep. If the previous tide
             # was higher than the current tide, the tide is 'ebbing'. If the
             # previous tide was lower, the tide is 'flowing'
             tidal_phase = [
-                "Ebb" if pre.tide_m > obs.tide_m else "Flow"
-                for pre, obs in zip(pre_predictedtides, obs_predictedtides)
+                "Ebb" if pre.tide_m > obs.tide_m else "Flow" for pre, obs in zip(pre_predictedtides, obs_predictedtides)
             ]
 
             # Assign tide phase to the dataset as a new variable
@@ -147,7 +135,6 @@ def tidal_tag(
         # If swap_dims = True, make tide height the primary dimension
         # instead of time
         if swap_dims:
-
             # Swap dimensions and sort by tide height
             ds = ds.swap_dims({"time": "tide_height"})
             ds = ds.sortby("tide_height")
@@ -159,7 +146,6 @@ def tidal_tag(
             return ds
 
     else:
-
         raise ValueError(
             f"Tides could not be modelled for dataset centroid located "
             f"at {tidepost_lon:.2f}, {tidepost_lat:.2f}. This can occur if "
@@ -293,20 +279,12 @@ def tidal_stats(
     high_tide_offset = abs(all_max - obs_max) / all_range
 
     # Extract x (time in decimal years) and y (distance) values
-    all_x = (
-        all_timerange.year
-        + ((all_timerange.dayofyear - 1) / 365)
-        + ((all_timerange.hour - 1) / 24)
-    )
+    all_x = all_timerange.year + ((all_timerange.dayofyear - 1) / 365) + ((all_timerange.hour - 1) / 24)
     all_y = all_tideheights
     time_period = all_x.max() - all_x.min()
 
     # Extract x (time in decimal years) and y (distance) values
-    obs_x = (
-        ds_tides.time.dt.year
-        + ((ds_tides.time.dt.dayofyear - 1) / 365)
-        + ((ds_tides.time.dt.hour - 1) / 24)
-    )
+    obs_x = ds_tides.time.dt.year + ((ds_tides.time.dt.dayofyear - 1) / 365) + ((ds_tides.time.dt.hour - 1) / 24)
     obs_y = ds_tides.tide_height.values.astype(np.float)
 
     # Compute linear regression
@@ -314,7 +292,6 @@ def tidal_stats(
     all_linreg = stats.linregress(x=all_x, y=all_y)
 
     if plain_english:
-
         print(
             f"\n{spread:.0%} of the full {all_range:.2f} m modelled tidal "
             f"range is observed at this location.\nThe lowest "
@@ -325,8 +302,7 @@ def tidal_stats(
         # Plain english
         if obs_linreg.pvalue > 0.05:
             print(
-                f"Observed tides do not increase or decrease significantly "
-                f"over the ~{time_period:.0f} year period."
+                f"Observed tides do not increase or decrease significantly " f"over the ~{time_period:.0f} year period."
             )
         else:
             obs_slope_desc = "decrease" if obs_linreg.slope < 0 else "increase"
@@ -339,10 +315,7 @@ def tidal_stats(
             )
 
         if all_linreg.pvalue > 0.05:
-            print(
-                f"All tides do not increase or decrease significantly over "
-                f"the ~{time_period:.0f} year period."
-            )
+            print(f"All tides do not increase or decrease significantly over " f"the ~{time_period:.0f} year period.")
         else:
             all_slope_desc = "decrease" if all_linreg.slope < 0 else "increase"
             print(
@@ -354,13 +327,10 @@ def tidal_stats(
             )
 
     if plot:
-
         # Create plot and add all time and observed tide data
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(all_timerange, all_tideheights, alpha=0.4)
-        ds_tides.tide_height.plot.line(
-            ax=ax, marker="o", linewidth=0.0, color="black", markersize=2
-        )
+        ds_tides.tide_height.plot.line(ax=ax, marker="o", linewidth=0.0, color="black", markersize=2)
 
         # Add horizontal lines for spread/offsets
         ax.axhline(obs_min, color="black", linestyle=":", linewidth=1)
@@ -415,31 +385,31 @@ def tidal_stats(
     ).round(round_stats)
 
 
-def transect_distances(transects_gdf, lines_gdf, mode='distance'):
+def transect_distances(transects_gdf, lines_gdf, mode="distance"):
     """
-    Take a set of transects (e.g. shore-normal beach survey lines), and 
+    Take a set of transects (e.g. shore-normal beach survey lines), and
     determine the distance along the transect to each object in a set of
-    lines (e.g. shorelines). Distances are measured in the CRS of the 
+    lines (e.g. shorelines). Distances are measured in the CRS of the
     input datasets.
-    
-    For coastal applications, transects should be drawn from land to 
+
+    For coastal applications, transects should be drawn from land to
     water (with the first point being on land so that it can be used
     as a consistent location from which to measure distances.
-        
+
     The distance calculation can be performed using two modes:
-        - 'distance': Distances are measured from the start of the 
-          transect to where it intersects with each line. Any transect 
-          that intersects a line more than once is ignored. This mode is 
-          useful for measuring e.g. the distance to the shoreline over 
+        - 'distance': Distances are measured from the start of the
+          transect to where it intersects with each line. Any transect
+          that intersects a line more than once is ignored. This mode is
+          useful for measuring e.g. the distance to the shoreline over
           time from a consistent starting location.
         - 'width' Distances are measured between the first and last
-          intersection between a transect and each line. Any transect 
-          that intersects a line only once is ignored. This is useful 
+          intersection between a transect and each line. Any transect
+          that intersects a line only once is ignored. This is useful
           for e.g. measuring the width of a narrow area of coastline over
           time, e.g. the neck of a spit or tombolo.
-          
+
     Parameters
-    ----------     
+    ----------
     transects_gdf : geopandas.GeoDataFrame
         A GeoDataFrame containing one or multiple vector profile lines.
         The GeoDataFrame's index column will be used to name the rows in
@@ -451,17 +421,17 @@ def transect_distances(transects_gdf, lines_gdf, mode='distance'):
         in the output distance table.
     mode : string, optional
         Whether to use 'distance' (for measuring distances from the
-        start of a profile) or 'width' mode (for measuring the width 
+        start of a profile) or 'width' mode (for measuring the width
         between two profile intersections). See docstring above for more
         info; defaults to 'distance'.
-        
+
     Returns
     -------
     distance_df : pandas.DataFrame
         A DataFrame containing distance measurements for each profile
-        line (rows) and line feature (columns). 
+        line (rows) and line feature (columns).
     """
-    
+
     import warnings
     from shapely.errors import ShapelyDeprecationWarning
     from shapely.geometry import Point
@@ -469,82 +439,77 @@ def transect_distances(transects_gdf, lines_gdf, mode='distance'):
     def _intersect_dist(transect_gdf, lines_gdf, mode=mode):
         """
         Take an individual transect, and determine the distance along
-        the transect to each object in a set of lines (e.g. shorelines).        
+        the transect to each object in a set of lines (e.g. shorelines).
         """
 
         # Identify intersections between transects and lines
-        intersect_points = lines_gdf.apply(
-            lambda x: x.geometry.intersection(transect_gdf.geometry), axis=1)
+        intersect_points = lines_gdf.apply(lambda x: x.geometry.intersection(transect_gdf.geometry), axis=1)
 
         # In distance mode, identify transects with one intersection only,
         # and use this as the end point and the start of the transect as the
         # start point when measuring distances
-        if mode == 'distance':
+        if mode == "distance":
             start_point = Point(transect_gdf.geometry.coords[0])
             point_df = intersect_points.apply(
-                lambda x: pd.Series({'start': start_point, 'end': x}) 
-                if x.type == 'Point'
-                else pd.Series({'start': None, 'end': None}))
+                lambda x: pd.Series({"start": start_point, "end": x})
+                if x.type == "Point"
+                else pd.Series({"start": None, "end": None})
+            )
 
         # In width mode, identify transects with multiple intersections, and
         # use the first intersection as the start point and the second
         # intersection for the end point when measuring distances
-        if mode == 'width':
+        if mode == "width":
             point_df = intersect_points.apply(
-                lambda x: pd.Series({'start': x.geoms[0], 'end': x.geoms[-1]})
-                if x.type == 'MultiPoint' 
-                else pd.Series({'start': None, 'end': None}))
+                lambda x: pd.Series({"start": x.geoms[0], "end": x.geoms[-1]})
+                if x.type == "MultiPoint"
+                else pd.Series({"start": None, "end": None})
+            )
 
         # Calculate distances between valid start and end points
-        distance_df = point_df.apply(
-            lambda x: x.start.distance(x.end) if x.start else None, axis=1)
-            
+        distance_df = point_df.apply(lambda x: x.start.distance(x.end) if x.start else None, axis=1)
+
         return distance_df
 
     # Run code after ignoring Shapely pre-v2.0 warnings
-    with warnings.catch_warnings():        
-        warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning) 
-        
-        # Assert that both datasets use the same CRS
-        assert transects_gdf.crs == lines_gdf.crs, ('Please ensure both '
-        'input datasets use the same CRS.')
-        
-        # Run distance calculations
-        distance_df = transects_gdf.apply(
-            lambda x: _intersect_dist(x, lines_gdf), axis=1)   
-        
-        return pd.DataFrame(distance_df)
-    
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 
-def get_coastlines(bbox: tuple,
-                   crs="EPSG:4326",
-                   layer="shorelines",
-                   drop_wms=True) -> gpd.GeoDataFrame:
+        # Assert that both datasets use the same CRS
+        assert transects_gdf.crs == lines_gdf.crs, "Please ensure both " "input datasets use the same CRS."
+
+        # Run distance calculations
+        distance_df = transects_gdf.apply(lambda x: _intersect_dist(x, lines_gdf), axis=1)
+
+        return pd.DataFrame(distance_df)
+
+
+def get_coastlines(bbox: tuple, crs="EPSG:4326", layer="shorelines", drop_wms=True) -> gpd.GeoDataFrame:
     """
     Get DE Africa Coastlines data for a provided bounding box using WFS.
-    
-    For a full description of the DE Africa Coastlines dataset, refer to the 
+
+    For a full description of the DE Africa Coastlines dataset, refer to the
     official Digital Earth Africa product description:
-    
+
     Parameters
     ----------
     bbox : (xmin, ymin, xmax, ymax), or geopandas object
-        Bounding box expressed as a tuple. Alternatively, a bounding 
-        box can be automatically extracted by suppling a 
+        Bounding box expressed as a tuple. Alternatively, a bounding
+        box can be automatically extracted by suppling a
         geopandas.GeoDataFrame or geopandas.GeoSeries.
     crs : str, optional
         Optional CRS for the bounding box. This is ignored if `bbox`
         is provided as a geopandas object.
     layer : str, optional
         Which DE Africa Coastlines layer to load. Options include the annual
-        shoreline vectors ("shorelines") and the rates of change 
+        shoreline vectors ("shorelines") and the rates of change
         statistics points ("statistics"). Defaults to "shorelines".
     drop_wms : bool, optional
         Whether to drop WMS-specific attribute columns from the data.
         These columns are used for visualising the dataset on DE Africa Maps,
         and are unlikely to be useful for scientific analysis. Defaults
         to True.
-    
+
     Returns
     -------
     gpd.GeoDataFrame
@@ -562,9 +527,9 @@ def get_coastlines(bbox: tuple,
     # Get the available layers in the coastlines:DEAfrica_Coastlines group.
     describe_layer_url = "https://geoserver.digitalearth.africa/geoserver/wms?service=WMS&version=1.1.1&request=DescribeLayer&layers=coastlines:DEAfrica_Coastlines&outputFormat=application/json"
     describe_layer_response = requests.get(describe_layer_url).json()
-    available_layers = [layer["layerName"] for layer in describe_layer_response['layerDescriptions']]
+    available_layers = [layer["layerName"] for layer in describe_layer_response["layerDescriptions"]]
 
-    # Get the layer name. 
+    # Get the layer name.
     if layer == "shorelines":
         layer_name = [i for i in available_layers if "shorelines" in i]
     else:
@@ -572,9 +537,7 @@ def get_coastlines(bbox: tuple,
 
     # Query WFS.
     wfs = WebFeatureService(url=WFS_ADDRESS, version="1.1.0")
-    response = wfs.getfeature(typename=layer_name,
-                              bbox=tuple(bbox) + (crs,),
-                              outputFormat="json")
+    response = wfs.getfeature(typename=layer_name, bbox=tuple(bbox) + (crs,), outputFormat="json")
 
     # Load data as a geopandas.GeoDataFrame.
     coastlines_gdf = gpd.read_file(response)

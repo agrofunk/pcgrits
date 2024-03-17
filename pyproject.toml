@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "pcgrits"
+version = "0.1.0"
+description = ""
+authors = ["Denis <denismeia@icloud.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+geopandas = "^0.14.3"
+stackstac = "^0.5.0"
+xarray = "^2024.2.0"
+scipy = "^1.12.0"
+pystac-client = "^0.7.6"
+planetary-computer = "^1.0.0"
+ruff = "^0.3.3"
+matplotlib = "^3.8.3"
+pytest = "^8.1.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.black]
+line-length = 120
+
+[tool.ruff]
+line-length = 120
+lint.extend-select  = [
+    "I001",  # unsorted-imports
+    "RUF100",  # unused-noqa
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+pythonpath = "."
+testpaths = [
+    "tests",
+]
+

@@ -1,13 +1,14 @@
-'''
+"""
 Functions for loading and interacting with Global Forest Change data in the forest monitoring notebook, inside the Real_world_examples folder.
-'''
+"""
 
 # Import required packages
 
 # Force GeoPandas to use Shapely instead of PyGEOS
 # In a future release, GeoPandas will switch to using Shapely by default.
 import os
-os.environ['USE_PYGEOS'] = '0'
+
+os.environ["USE_PYGEOS"] = "0"
 
 import json
 import warnings
@@ -43,6 +44,7 @@ from traitlets import Unicode
 warnings.filterwarnings("ignore")
 warnings.simplefilter("ignore")
 
+
 def make_box_layout():
     """
     Defines a number of CSS properties that impact how a widget is laid out.
@@ -54,6 +56,7 @@ def make_box_layout():
         height="100%",
     )
 
+
 def create_expanded_button(description, button_style):
     """
     Defines a number of CSS properties to create a button to handle mouse clicks.
@@ -63,6 +66,7 @@ def create_expanded_button(description, button_style):
         button_style=button_style,
         layout=Layout(width="auto", height="auto"),
     )
+
 
 def load_gfclayer(gdf_drawn, gfclayer):
     """
@@ -83,12 +87,8 @@ def load_gfclayer(gdf_drawn, gfclayer):
         gdf_drawn.bounds.maxx.item(),
     )
 
-    lats = np.arange(
-        np.floor(min_lat / 10) * 10, np.ceil(max_lat / 10) * 10, 10
-    ).astype(int)
-    lons = np.arange(
-        np.floor(min_lon / 10) * 10, np.ceil(max_lon / 10) * 10, 10
-    ).astype(int)
+    lats = np.arange(np.floor(min_lat / 10) * 10, np.ceil(max_lat / 10) * 10, 10).astype(int)
+    lons = np.arange(np.floor(min_lon / 10) * 10, np.ceil(max_lon / 10) * 10, 10).astype(int)
 
     coord_list = []
     for lat in lats:
@@ -106,7 +106,9 @@ def load_gfclayer(gdf_drawn, gfclayer):
             coord_list.append(coord_str)
 
     # Load each Global Forest Change tile covering the area of interest.
-    base_url = f"https://storage.googleapis.com/earthenginepartners-hansen/GFC-2021-v1.9/Hansen_GFC-2021-v1.9_{gfclayer}_"
+    base_url = (
+        f"https://storage.googleapis.com/earthenginepartners-hansen/GFC-2021-v1.9/Hansen_GFC-2021-v1.9_{gfclayer}_"
+    )
     dask_chunks = dict(x=2048, y=2048)
 
     tile_list = []
@@ -154,6 +156,7 @@ def load_gfclayer(gdf_drawn, gfclayer):
     client.close()
     return ds
 
+
 def load_all_gfclayers(gdf_drawn):
     gfclayers = ["treecover2000", "gain", "lossyear"]
 
@@ -164,6 +167,7 @@ def load_all_gfclayers(gdf_drawn):
 
     dataset = xr.merge(dataset_list)
     return dataset
+
 
 def get_gfclayer_treecover2000(gfclayer_ds, gfclayer="treecover2000"):
     """
@@ -185,9 +189,7 @@ def get_gfclayer_treecover2000(gfclayer_ds, gfclayer="treecover2000"):
         counts = np.unique(ds_masked, return_counts=True)
         # Remove the counts for pixels with the value np.nan.
         index = np.argwhere(np.isnan(counts[0]))
-        counts_dict = dict(
-            zip(np.delete(counts[0], index), np.delete(counts[1], index))
-        )
+        counts_dict = dict(zip(np.delete(counts[0], index), np.delete(counts[1], index)))
 
         # Reproject the dataset to EPSG:6933 which uses metres
         ds_reprojected = ds_masked.rio.reproject("EPSG:6933")
@@ -200,18 +202,20 @@ def get_gfclayer_treecover2000(gfclayer_ds, gfclayer="treecover2000"):
         df = pd.DataFrame(
             data={
                 "Year": ["2000"],
-                "Tree Cover in km$^2$": np.fromiter(counts_dict.values(), dtype=float)
-                * per_pixel_area,
+                "Tree Cover in km$^2$": np.fromiter(counts_dict.values(), dtype=float) * per_pixel_area,
             }
         )
 
         # Get the total area.
-        print_statement = f'Total Forest Cover in {df["Year"].item()}: {round(df["Tree Cover in km$^2$"].item(), 4)} km2'
+        print_statement = (
+            f'Total Forest Cover in {df["Year"].item()}: {round(df["Tree Cover in km$^2$"].item(), 4)} km2'
+        )
 
         # File name to use when exporting results.
         file_name = f"forest_cover_in_2000"
 
         return ds, df, print_statement, file_name
+
 
 def get_gfclayer_gain(gfclayer_ds, gfclayer="gain"):
     """
@@ -229,9 +233,7 @@ def get_gfclayer_gain(gfclayer_ds, gfclayer="gain"):
         counts = np.unique(ds, return_counts=True)
         # Remove the counts for pixels with the value np.nan.
         index = np.argwhere(np.isnan(counts[0]))
-        counts_dict = dict(
-            zip(np.delete(counts[0], index), np.delete(counts[1], index))
-        )
+        counts_dict = dict(zip(np.delete(counts[0], index), np.delete(counts[1], index)))
 
         # Reproject the dataset to EPSG:6933 which uses metres.
         ds_reprojected = ds.rio.reproject("EPSG:6933")
@@ -244,20 +246,20 @@ def get_gfclayer_gain(gfclayer_ds, gfclayer="gain"):
         df = pd.DataFrame(
             data={
                 "Year": ["2000-2012"],
-                "Forest Cover Gain in km$^2$": np.fromiter(
-                    counts_dict.values(), dtype=float
-                )
-                * per_pixel_area,
+                "Forest Cover Gain in km$^2$": np.fromiter(counts_dict.values(), dtype=float) * per_pixel_area,
             }
         )
 
         # Get the total area.
-        print_statement = f'Total Forest Cover Gain {df["Year"].item()}: {round(df["Forest Cover Gain in km$^2$"].item(), 4)} km2'
+        print_statement = (
+            f'Total Forest Cover Gain {df["Year"].item()}: {round(df["Forest Cover Gain in km$^2$"].item(), 4)} km2'
+        )
 
         # File name to use when exporting results.
         file_name = f"forest_cover_gain_from_2000_to_2012"
 
         return ds, df, print_statement, file_name
+
 
 def get_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear"):
     """
@@ -281,9 +283,7 @@ def get_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear"
         counts = np.unique(ds, return_counts=True)
         # Remove the counts for pixels with the value np.nan.
         index = np.argwhere(np.isnan(counts[0]))
-        counts_dict = dict(
-            zip(np.delete(counts[0], index), np.delete(counts[1], index))
-        )
+        counts_dict = dict(zip(np.delete(counts[0], index), np.delete(counts[1], index)))
 
         # Reproject the dataset to EPSG:6933 which uses metres
         ds_reprojected = ds.rio.reproject("EPSG:6933")
@@ -297,10 +297,7 @@ def get_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear"
         df = pd.DataFrame(
             {
                 "Year": 2000 + np.fromiter(counts_dict.keys(), dtype=int),
-                "Forest Cover Loss in km$^2$": np.fromiter(
-                    counts_dict.values(), dtype=float
-                )
-                * per_pixel_area,
+                "Forest Cover Loss in km$^2$": np.fromiter(counts_dict.values(), dtype=float) * per_pixel_area,
             }
         )
 
@@ -311,6 +308,7 @@ def get_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear"
         file_name = f"forest_cover_loss_from_{start_year + 2000}_to_{end_year + 2000}"
 
         return ds, df, print_statement, file_name
+
 
 def plot_gfclayer_treecover2000(gfclayer_ds, gfclayer="treecover2000"):
     """
@@ -338,9 +336,7 @@ def plot_gfclayer_treecover2000(gfclayer_ds, gfclayer="treecover2000"):
         im = ds.plot(cmap="Greens", add_colorbar=False, ax=ax)
         # Add a colorbar to the plot.
         cbar = plt.colorbar(mappable=im)
-        cbar.set_label(
-            "Percentage tree canopy cover for year 2000", labelpad=-65, y=0.25
-        )
+        cbar.set_label("Percentage tree canopy cover for year 2000", labelpad=-65, y=0.25)
         # Add a title to the plot.
         plt.title(title)
         # Save the plot.
@@ -349,6 +345,7 @@ def plot_gfclayer_treecover2000(gfclayer_ds, gfclayer="treecover2000"):
         plt.show()
 
         print(print_statement)
+
 
 def plot_gfclayer_gain(gfclayer_ds, gfclayer="gain"):
     """
@@ -392,15 +389,13 @@ def plot_gfclayer_gain(gfclayer_ds, gfclayer="gain"):
 
         print(print_statement)
 
+
 def plot_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear"):
     """
     Plot the Global Forest change "lossyear" layer.
     """
 
-    if (
-        get_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear")
-        is None
-    ):
+    if get_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear") is None:
         print(
             f"No Global Forest Change {gfclayer} layer data found in the selected area. Please select a new polygon over an area with data."
         )
@@ -454,9 +449,7 @@ def plot_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear
         norm = mcolors.BoundaryNorm(boundaries=color_levels, ncolors=cmap.N)
 
         # Plot the dataset.
-        fig, (ax1, ax2) = plt.subplots(
-            nrows, ncols, figsize=(figure_width, figure_length)
-        )
+        fig, (ax1, ax2) = plt.subplots(nrows, ncols, figsize=(figure_width, figure_length))
         im = ds.plot(ax=ax1, cmap=cmap, norm=norm, add_colorbar=False)
         # Add a title to the subplot.
         ax1.set_title(title)
@@ -479,6 +472,7 @@ def plot_gfclayer_lossyear(gfclayer_ds, start_year, end_year, gfclayer="lossyear
 
         print(print_statement)
 
+
 def plot_gfclayer_all(gfclayer_ds, start_year, end_year):
     """
     Plot all the Global Forest Change Layers loaded.
@@ -498,12 +492,7 @@ def plot_gfclayer_all(gfclayer_ds, start_year, end_year):
 
     # Define the figure.
     fig, ax = plt.subplots(figsize=(figure_width, figure_length))
-    if (
-        get_gfclayer_treecover2000(
-            gfclayer_ds[["treecover2000"]], gfclayer="treecover2000"
-        )
-        is None
-    ):
+    if get_gfclayer_treecover2000(gfclayer_ds[["treecover2000"]], gfclayer="treecover2000") is None:
         print(
             f"No Global Forest Change 'treecover2000' layer data found in the selected area. Please select a new polygon over an area with data."
         )
@@ -513,18 +502,12 @@ def plot_gfclayer_all(gfclayer_ds, start_year, end_year):
             df_treecover2000,
             print_statement_treecover2000,
             file_name_treecover2000,
-        ) = get_gfclayer_treecover2000(
-            gfclayer_ds[["treecover2000"]], gfclayer="treecover2000"
-        )
+        ) = get_gfclayer_treecover2000(gfclayer_ds[["treecover2000"]], gfclayer="treecover2000")
         # Plot the treecover2000 layer as the background layer.
-        background = ds_treecover2000.plot(
-            cmap=treecover_color, add_colorbar=False, ax=ax
-        )
+        background = ds_treecover2000.plot(cmap=treecover_color, add_colorbar=False, ax=ax)
         # Add a colorbar to the treecover2000 plot.
         cbar = plt.colorbar(mappable=background)
-        cbar.set_label(
-            "Percentage tree canopy cover for year 2000", labelpad=-65, y=0.25
-        )
+        cbar.set_label("Percentage tree canopy cover for year 2000", labelpad=-65, y=0.25)
         # Export the dataframe as a csv.
         df_treecover2000.to_csv(f"{file_name_treecover2000}.csv", index=False)
         # Add the print statement to the list.
@@ -541,9 +524,7 @@ def plot_gfclayer_all(gfclayer_ds, start_year, end_year):
             gfclayer_ds[["gain"]], gfclayer="gain"
         )
         # Plot the gain layer.
-        ds_gain.plot(
-            ax=ax, cmap=mcolors.ListedColormap([gain_color]), add_colorbar=False
-        )
+        ds_gain.plot(ax=ax, cmap=mcolors.ListedColormap([gain_color]), add_colorbar=False)
         # Export the dataframe as a csv.
         df_gain.to_csv(f"{file_name_gain}.csv", index=False)
         # Add the print statement to the list.
@@ -551,12 +532,7 @@ def plot_gfclayer_all(gfclayer_ds, start_year, end_year):
         # Add the file name to the list.
         filename_list.append(f'"{file_name_gain}.csv"')
 
-    if (
-        get_gfclayer_lossyear(
-            gfclayer_ds[["lossyear"]], start_year, end_year, gfclayer="lossyear"
-        )
-        is None
-    ):
+    if get_gfclayer_lossyear(gfclayer_ds[["lossyear"]], start_year, end_year, gfclayer="lossyear") is None:
         print(
             f"No Global Forest Change 'lossyear' layer data found in the selected area. Please select a new polygon over an area with data."
         )
@@ -566,13 +542,9 @@ def plot_gfclayer_all(gfclayer_ds, start_year, end_year):
             df_lossyear,
             print_statement_lossyear,
             file_name_lossyear,
-        ) = get_gfclayer_lossyear(
-            gfclayer_ds[["lossyear"]], start_year, end_year, gfclayer="lossyear"
-        )
+        ) = get_gfclayer_lossyear(gfclayer_ds[["lossyear"]], start_year, end_year, gfclayer="lossyear")
         # Plot the lossyear layer.
-        ds_lossyear.plot(
-            ax=ax, cmap=mcolors.ListedColormap([lossyear_color]), add_colorbar=False
-        )
+        ds_lossyear.plot(ax=ax, cmap=mcolors.ListedColormap([lossyear_color]), add_colorbar=False)
         # Export the dataframe as a csv.
         df_lossyear.to_csv(f"{file_name_lossyear}.csv", index=False)
         # Add the print statement to the list.
@@ -597,7 +569,8 @@ def plot_gfclayer_all(gfclayer_ds, start_year, end_year):
     plt.show()
     print(*print_statement_list, sep="\n")
     print(*filename_list, sep="\n\t")
-    print(f'\nFigure saved as "{figure_fn}"');
+    print(f'\nFigure saved as "{figure_fn}"')
+
 
 def plot_gfclayer(gfclayer_ds, start_year, end_year, gfclayer):
     if gfclayer == "treecover2000":
@@ -608,6 +581,7 @@ def plot_gfclayer(gfclayer_ds, start_year, end_year, gfclayer):
         plot_gfclayer_gain(gfclayer_ds, gfclayer)
     elif gfclayer == "alllayers":
         plot_gfclayer_all(gfclayer_ds, start_year, end_year)
+
 
 def update_map_layers(self):
     """
@@ -622,6 +596,7 @@ def update_map_layers(self):
     # Add the selected basemap to the layer Group.
     self.map_layers.add_layer(self.basemap)
 
+
 class forest_monitoring_app(HBox):
     def __init__(self):
         super().__init__()
@@ -634,9 +609,7 @@ class forest_monitoring_app(HBox):
         header_title_text = "<h3>Digital Earth Africa Forest Change</h3>"
         instruction_text = """<p>Select the desired Global Forest Change layer, then zoom in and draw a polygon to
                                 select an area for which to plot the selected Global Forest Change layer. Alternatively, <b>upload a vector file</b> of the area of interest.</p>"""
-        self.header = deawidgets.create_html(
-            value=f"{header_title_text}{instruction_text}"
-        )
+        self.header = deawidgets.create_html(value=f"{header_title_text}{instruction_text}")
         self.header.layout = make_box_layout()
 
         ############################
@@ -653,16 +626,12 @@ class forest_monitoring_app(HBox):
         # Set the default basemap to be used for the map widget / initial value for the widget.
         self.basemap = self.basemap_list[0][1]
         # Dropdown selection widget.
-        dropdown_basemap = deawidgets.create_dropdown(
-            options=self.basemap_list, value=self.basemap
-        )
+        dropdown_basemap = deawidgets.create_dropdown(options=self.basemap_list, value=self.basemap)
         # Register the update function to run when a new value is selected
         # on the dropdown_basemap widget.
         dropdown_basemap.observe(self.update_basemap, "value")
         # Text to accompany the dropdown selection widget.
-        basemap_selection_html = deawidgets.create_html(
-            value=f"</br><b>Map overlay:</b>"
-        )
+        basemap_selection_html = deawidgets.create_html(value=f"</br><b>Map overlay:</b>")
         # Combine the basemap_selection_html text and the dropdown_basemap widget in a single container.
         basemap_selection = VBox([basemap_selection_html, dropdown_basemap])
 
@@ -696,27 +665,19 @@ class forest_monitoring_app(HBox):
         # Register the update function to run when a new value is selected on the slider.
         timerange_selection_slide.observe(self.update_timerange, "value")
         # Text to accompany the timerange_selection widget.
-        timerange_selection_html = deawidgets.create_html(
-            value=f"</br><b>Forest Cover Loss Time Range:</b>"
-        )
+        timerange_selection_html = deawidgets.create_html(value=f"</br><b>Forest Cover Loss Time Range:</b>")
         # Combine the timerange_selection_text and the timerange_selection_slide  in a single container.
-        timerange_selection = VBox(
-            [timerange_selection_html, timerange_selection_slide]
-        )
+        timerange_selection = VBox([timerange_selection_html, timerange_selection_slide])
 
         # Set the initial parameter for the GFC layer dataset.
         self.gfclayer_ds = None
         # Dropdown selection widget.
-        dropdown_gfclayer = deawidgets.create_dropdown(
-            options=self.gfclayers_list, value=self.gfclayer
-        )
+        dropdown_gfclayer = deawidgets.create_dropdown(options=self.gfclayers_list, value=self.gfclayer)
         # Register the update function to run when a new value is selected
         # on the dropdown_gfclayer widget.
         dropdown_gfclayer.observe(self.update_gfclayer, "value")
         # Text to accompany the dropdown selection widget.
-        gfclayer_selection_html = deawidgets.create_html(
-            value=f"</br><b>Global Forest Change Layer:</b>"
-        )
+        gfclayer_selection_html = deawidgets.create_html(value=f"</br><b>Global Forest Change Layer:</b>")
         # Combine the gfclayer_selection_html text and the dropdown_gfclayer widget in a single container.
         gfclayer_selection = VBox([gfclayer_selection_html, dropdown_gfclayer])
 
@@ -738,37 +699,28 @@ class forest_monitoring_app(HBox):
         checkbox_max_size.observe(self.update_checkbox_max_size, "value")
         # # Combine the checkbox_max_size_html text and the checkbox_max_size widget in a single container.
         enable_max_size = VBox([checkbox_max_size_html, checkbox_max_size])
-        
-        # Add widget to enable uploading a geojson or ESRI shapefile. 
+
+        # Add widget to enable uploading a geojson or ESRI shapefile.
         self.gdf_uploaded = None
         fileupload_aoi = widgets.FileUpload(accept="", multiple=True)
-        # Register the update function to be called for the file upload. 
+        # Register the update function to be called for the file upload.
         fileupload_aoi.observe(self.update_fileupload_aoi, "value")
-        fileupload_html = deawidgets.create_html(value=f"""</br><i><b>Advanced</b></br>Upload a GeoJSON or ESRI Shapefile (<5 mb) containing a single area of interest.</i>""")
+        fileupload_html = deawidgets.create_html(
+            value=f"""</br><i><b>Advanced</b></br>Upload a GeoJSON or ESRI Shapefile (<5 mb) containing a single area of interest.</i>"""
+        )
         fileupload = VBox([fileupload_html, fileupload_aoi])
-        
-        
+
         ## Put the app controls widgets into a single container.
         parameter_selection = VBox(
-            [
-                basemap_selection,
-                gfclayer_selection,
-                timerange_selection,
-                enable_max_size,
-                fileupload
-            ]
+            [basemap_selection, gfclayer_selection, timerange_selection, enable_max_size, fileupload]
         )
         parameter_selection.layout = make_box_layout()
 
         ## Button to click to run the app.
-        run_button = create_expanded_button(
-            description="Generate plot", button_style="info"
-        )
+        run_button = create_expanded_button(description="Generate plot", button_style="info")
         # Register the update function to be called when the run_button button
         # is clicked.
         run_button.on_click(self.run_app)
-        
-        
 
         ###########################
         # WIDGETS FOR APP OUTPUTS #
@@ -810,7 +762,6 @@ class forest_monitoring_app(HBox):
         #####################################
 
         def handle_draw(target, action, geo_json):
-
             """
             Defines the action to take once something is drawn on the
             map widget.
@@ -818,7 +769,7 @@ class forest_monitoring_app(HBox):
             # Remove previously uploaded data if present
             self.gdf_uploaded = None
             fileupload_aoi._counter = 0
-            
+
             self.target = target
             self.action = action
 
@@ -838,40 +789,26 @@ class forest_monitoring_app(HBox):
             m2_per_ha = 10000
             area = gdf_drawn_nsidc.area.values[0] / m2_per_ha
 
-            polyarea_label = (
-                f"Total area of Global Forest Change {self.gfclayer} layer to load"
-            )
+            polyarea_label = f"Total area of Global Forest Change {self.gfclayer} layer to load"
             polyarea_text = f"<b>{polyarea_label}</b>: {area:.2f} ha</sup>"
 
             # Test the size of the polygon drawn.
             if self.max_size:
                 confirmation_text = """<span style="color: #33cc33">  
                                     <b>(Overriding maximum size limit; use with caution as may lead to memory issues)</b></span>"""
-                self.header.value = (
-                    header_title_text
-                    + instruction_text
-                    + polyarea_text
-                    + confirmation_text
-                )
+                self.header.value = header_title_text + instruction_text + polyarea_text + confirmation_text
                 self.gdf_drawn = gdf
             elif area <= 50000:
                 confirmation_text = """<span style="color: #33cc33">
                                     <b>(Area to extract falls within
                                     recommended 50000 ha limit)</b></span>"""
-                self.header.value = (
-                    header_title_text
-                    + instruction_text
-                    + polyarea_text
-                    + confirmation_text
-                )
+                self.header.value = header_title_text + instruction_text + polyarea_text + confirmation_text
                 self.gdf_drawn = gdf
             else:
                 warning_text = """<span style="color: #ff5050">
                                 <b>(Area to extract is too large,
                                 please select an area less than 50000 )</b></span>"""
-                self.header.value = (
-                    header_title_text + instruction_text + polyarea_text + warning_text
-                )
+                self.header.value = header_title_text + instruction_text + polyarea_text + warning_text
                 self.gdf_drawn = None
 
         # Register the handler for draw events.
@@ -886,9 +823,7 @@ class forest_monitoring_app(HBox):
         grid_columns = 11
         grid_height = "1500px"
         grid_width = "auto"
-        grid = GridspecLayout(
-            grid_rows, grid_columns, height=grid_height, width=grid_width
-        )
+        grid = GridspecLayout(grid_rows, grid_columns, height=grid_height, width=grid_width)
 
         # Place app widgets and components in app layout.
         # [rows, columns]
@@ -932,37 +867,26 @@ class forest_monitoring_app(HBox):
         checkbox_max_size CheckBox is checked.
         """
         self.max_size = change.new
-        
-    def update_fileupload_aoi(self, change):
 
+    def update_fileupload_aoi(self, change):
         # Clear any drawn data if present
         self.gdf_drawn = None
-    
+
         # Save to file
         for uploaded_filename in change.new.keys():
             with open(uploaded_filename, "wb") as output_file:
-                content = change.new[uploaded_filename]['content']
+                content = change.new[uploaded_filename]["content"]
                 output_file.write(content)
 
         with self.status_info:
-
-            try:            
-
-                print('Loading vector data...', end='\r')
-                valid_files = [
-                    file for file in change.new.keys()
-                    if file.lower().endswith(('.shp', '.geojson'))
-                ]
+            try:
+                print("Loading vector data...", end="\r")
+                valid_files = [file for file in change.new.keys() if file.lower().endswith((".shp", ".geojson"))]
                 valid_file = valid_files[0]
-                aoi_gdf = (gpd.read_file(valid_file).to_crs(
-                    "EPSG:4326").explode().reset_index(drop=True))
+                aoi_gdf = gpd.read_file(valid_file).to_crs("EPSG:4326").explode().reset_index(drop=True)
 
                 # Create a geodata
-                geodata = GeoData(geo_dataframe=aoi_gdf,
-                                  style={
-                                      'color': 'black',
-                                      'weight': 3
-                                  })
+                geodata = GeoData(geo_dataframe=aoi_gdf, style={"color": "black", "weight": 3})
 
                 # Add to map
                 xmin, ymin, xmax, ymax = aoi_gdf.total_bounds
@@ -976,22 +900,23 @@ class forest_monitoring_app(HBox):
                 print(
                     "Cannot read uploaded files. Please ensure that data is "
                     "in either GeoJSON or ESRI Shapefile format.",
-                    end='\r')
+                    end="\r",
+                )
                 self.gdf_uploaded = None
 
             except fiona.errors.DriverError:
                 print(
                     "Shapefile is invalid. Please ensure that all shapefile "
                     "components (e.g. .shp, .shx, .dbf, .prj) are uploaded.",
-                    end='\r')
+                    end="\r",
+                )
                 self.gdf_uploaded = None
 
     def run_app(self, change):
-
         # Clear progress bar and output areas before running.
         self.status_info.clear_output()
         self.output_plot.clear_output()
-        
+
         with self.status_info:
             # Load the area of interest from the map or uploaded files.
             if self.gdf_uploaded is not None:
@@ -999,13 +924,14 @@ class forest_monitoring_app(HBox):
             elif self.gdf_drawn is not None:
                 aoi_gdf = self.gdf_drawn
             else:
-                print(f'No valid polygon drawn on the map or uploaded. Please draw a valid a transect on the map, or upload a GeoJSON or ESRI Shapefile.',
-                      end='\r')
+                print(
+                    f"No valid polygon drawn on the map or uploaded. Please draw a valid a transect on the map, or upload a GeoJSON or ESRI Shapefile.",
+                    end="\r",
+                )
                 aoi_gdf = None
 
             # If valid area of interest data returned. Load the selected Global Forest Change data.
             if aoi_gdf is not None:
-                
                 if self.gfclayer_ds is None:
                     if self.gfclayer != "alllayers":
                         self.gfclayer_ds = load_gfclayer(gdf_drawn=aoi_gdf, gfclayer=self.gfclayer)
@@ -1013,14 +939,18 @@ class forest_monitoring_app(HBox):
                         self.gfclayer_ds = load_all_gfclayers(gdf_drawn=aoi_gdf)
                 else:
                     print("Using previously loaded data")
-                
+
                 # Plot the selected Global Forest Change layer.
                 if self.gfclayer_ds is not None:
                     with self.output_plot:
-                        plot_gfclayer(gfclayer_ds=self.gfclayer_ds,
-                                      start_year=self.start_year,
-                                      end_year=self.end_year,
-                                      gfclayer=self.gfclayer)
+                        plot_gfclayer(
+                            gfclayer_ds=self.gfclayer_ds,
+                            start_year=self.start_year,
+                            end_year=self.end_year,
+                            gfclayer=self.gfclayer,
+                        )
                 else:
                     with self.status_info:
-                        print(f"No Global Forest Change {self.gfclayer} layer data found in the selected area. Please select a new polygon over an area with data.")
+                        print(
+                            f"No Global Forest Change {self.gfclayer} layer data found in the selected area. Please select a new polygon over an area with data."
+                        )
