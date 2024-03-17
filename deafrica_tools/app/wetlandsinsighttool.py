@@ -8,7 +8,8 @@ version of the wetlands insight tool.
 # Force GeoPandas to use Shapely instead of PyGEOS
 # In a future release, GeoPandas will switch to using Shapely by default.
 import os
-os.environ['USE_PYGEOS'] = '0'
+
+os.environ["USE_PYGEOS"] = "0"
 
 import datacube
 import warnings
@@ -47,13 +48,13 @@ import deafrica_tools.app.widgetconstructors as deawidgets
 
 
 def make_box_layout():
-     return Layout(
-         #border='solid 1px black',
-         margin='0px 10px 10px 0px',
-         padding='5px 5px 5px 5px',
-         width='100%',
-         height='100%',
-     )
+    return Layout(
+        # border='solid 1px black',
+        margin="0px 10px 10px 0px",
+        padding="5px 5px 5px 5px",
+        width="100%",
+        height="100%",
+    )
 
 
 def create_expanded_button(description, button_style):
@@ -67,7 +68,7 @@ def create_expanded_button(description, button_style):
 class wit_app(HBox):
     def __init__(self, lang=None):
         super().__init__()
-        
+
         deafrica_tools.set_lang(lang)
 
         ##########################################################
@@ -84,29 +85,27 @@ class wit_app(HBox):
             (_("ESRI World Imagery"), "esri_world_imagery"),
             (_("Sentinel-2 Geomedian"), "gm_s2_annual"),
             (_("Water Observations from Space"), "wofs_ls_summary_annual"),
-            
         ]
         self.product = self.product_list[0][1]
         self.product_year = "2020-01-01"
         self.target = None
         self.action = None
         self.gdf_drawn = None
-        
+
         ##########################################################
         # HEADER FOR APP #
-        
+
         # Create the Header widget
         header_title_text = _("Wetlands Insight Tool")
         instruction_text = _("Select parameters and AOI")
         self.header = deawidgets.create_html(f"<h3>{header_title_text}</h3><p>{instruction_text}</p>")
         self.header.layout = make_box_layout()
-        
+
         ##########################################################
         # HANDLER FUNCTION FOR DRAW CONTROL #
-        
+
         # Define the action to take once something is drawn on the map
         def update_geojson(target, action, geo_json):
-
             self.action = action
 
             json_data = json.dumps(geo_json)
@@ -119,16 +118,18 @@ class wit_app(HBox):
             self.gdf_drawn = gdf
 
             gdf_drawn_epsg6933 = gdf.copy().to_crs("EPSG:6933")
-            m2_per_km2 = 10 ** 6
+            m2_per_km2 = 10**6
             area = gdf_drawn_epsg6933.area.values[0] / m2_per_km2
-            polyarea_label = _('Total polygon area')
+            polyarea_label = _("Total polygon area")
             polyarea_text = f"<p><b>{polyarea_label}</b>: {area:.2f} km<sup>2</sup></p>"
 
             if area <= 3000:
-                confirmation_text = '<p style="color:#33cc33;">' + _('Area falls within recommended limit') + '</p>'
+                confirmation_text = '<p style="color:#33cc33;">' + _("Area falls within recommended limit") + "</p>"
                 self.header.value = header_title_text + polyarea_text + confirmation_text
             else:
-                warning_text = '<p style="color:#ff5050;">' + _('Area is too large, please update your polygon') + '</p>'
+                warning_text = (
+                    '<p style="color:#ff5050;">' + _("Area is too large, please update your polygon") + "</p>"
+                )
                 self.header.value = header_title_text + polyarea_text + warning_text
 
         ##########################################################
@@ -143,22 +144,22 @@ class wit_app(HBox):
         # MAP WIDGET, DRAWING TOOLS, WMS LAYERS #
 
         # Create drawing tools
-        desired_drawtools = ['rectangle', 'polygon']
+        desired_drawtools = ["rectangle", "polygon"]
         draw_control = deawidgets.create_drawcontrol(desired_drawtools)
-        
+
         # Begin by displaying an empty layer group, and update the group with desired WMS on interaction.
         self.deafrica_layers = LayerGroup(layers=())
-        self.deafrica_layers.name = _('Map Overlays')
+        self.deafrica_layers.name = _("Map Overlays")
 
         # Create map widget
         self.m = deawidgets.create_map()
-        
+
         self.m.layout = make_box_layout()
-        
+
         # Add tools to map widget
         self.m.add_control(draw_control)
         self.m.add_layer(self.deafrica_layers)
-        
+
         # Store current basemap for future use
         self.basemap = self.m.basemap
 
@@ -177,7 +178,7 @@ class wit_app(HBox):
 
         ##########################################################
         # COLLECTION OF ALL APP CONTROLS #
-        
+
         parameter_selection = VBox(
             [
                 HTML("<b>" + _("Map Overlay:") + "</b>"),
@@ -208,7 +209,7 @@ class wit_app(HBox):
         grid[0, :] = self.header
         grid[1:6, 0:2] = parameter_selection
         grid[6, 0:2] = run_button
-        
+
         # Dask and Progress info
         grid[1, 7:] = self.dask_client
         grid[2:7, 7:] = self.progress_bar
@@ -265,7 +266,6 @@ class wit_app(HBox):
 
     # Update product
     def update_deaoverlay(self, change):
-
         self.product = change.new
 
         if self.product == "none":
@@ -280,7 +280,6 @@ class wit_app(HBox):
             self.deafrica_layers.add_layer(layer)
 
     def run_app(self, change):
-        
         # Clear progress bar and output areas before running
         self.dask_client.clear_output()
         self.progress_bar.clear_output()
@@ -291,26 +290,24 @@ class wit_app(HBox):
 
         # Configure local dask cluster
         with self.dask_client:
-            client = create_local_dask_cluster(
-                return_client=True, display_client=True
-            )
+            client = create_local_dask_cluster(return_client=True, display_client=True)
 
         # Set any defaults
         TCW_threshold = -0.035
         dask_chunks = dict(x=1000, y=1000, time=1)
-        
-        #check resampling freq
-        if self.resamplingfreq  == 'None':
+
+        # check resampling freq
+        if self.resamplingfreq == "None":
             rsf = None
         else:
             rsf = self.resamplingfreq
-        
-        self.progress_header.value = f"<h3>"+_("Progress")+"</h3>"
-            
+
+        self.progress_header.value = f"<h3>" + _("Progress") + "</h3>"
+
         # run wetlands polygon drill
         with self.progress_bar:
-#             with ProgressBar():
-            warnings.filterwarnings("ignore")                
+            #             with ProgressBar():
+            warnings.filterwarnings("ignore")
             try:
                 df = WIT_drill(
                     gdf=self.gdf_drawn,
@@ -326,7 +323,7 @@ class wit_app(HBox):
                 print(_("WIT complete"))
             except AttributeError:
                 print(_("No polygon selected"))
-        
+
         # close down the dask client
         client.shutdown()
 
@@ -335,9 +332,8 @@ class wit_app(HBox):
             df.to_csv(self.out_csv, index_label="Datetime")
 
         # ---Plotting------------------------------
-        
-        with self.wit_plot:
 
+        with self.wit_plot:
             fontsize = 17
             plt.rcParams.update({"font.size": fontsize})
             # set up color palette

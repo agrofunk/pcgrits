@@ -26,14 +26,14 @@ from deafrica_tools.dask import create_local_dask_cluster
 
 
 def run_filmstrip_app(
-        output_name,
-        time_range,
-        time_step,
-        tide_range=(0.0, 1.0),
-        resolution=(-30, 30),
-        max_cloud=0.5,
-        ls7_slc_off=False,
-        size_limit=10000,
+    output_name,
+    time_range,
+    time_step,
+    tide_range=(0.0, 1.0),
+    resolution=(-30, 30),
+    max_cloud=0.5,
+    ls7_slc_off=False,
+    size_limit=10000,
 ):
     """
     An interactive app that allows the user to select a region from a
@@ -117,10 +117,7 @@ def run_filmstrip_app(
 
     # Plot interactive map to select area
     basemap = basemap_to_tiles(basemaps.Esri.WorldImagery)
-    geopolygon = select_on_a_map(height="600px",
-                                 layers=(basemap,),
-                                 center=centre_coords,
-                                 zoom=14)
+    geopolygon = select_on_a_map(height="600px", layers=(basemap,), center=centre_coords, zoom=14)
 
     # Set centre coords based on most recent selection to re-focus
     # subsequent data selections
@@ -131,13 +128,14 @@ def run_filmstrip_app(
     area = geopolygon.to_crs(crs=CRS("epsg:6933")).area / msq_per_hectare
     radius = np.round(np.sqrt(size_limit), 1)
     if area > size_limit:
-        print(f"Warning: Your selected area is {area:.00f} hectares. "
-              f"Please select an area of less than {size_limit} hectares."
-              f"\nTo select a smaller area, re-run the cell "
-              f"above and draw a new polygon.")
+        print(
+            f"Warning: Your selected area is {area:.00f} hectares. "
+            f"Please select an area of less than {size_limit} hectares."
+            f"\nTo select a smaller area, re-run the cell "
+            f"above and draw a new polygon."
+        )
 
     else:
-
         print("Starting analysis...")
 
         # Connect to datacube database
@@ -147,12 +145,7 @@ def run_filmstrip_app(
         client = create_local_dask_cluster(return_client=True)
 
         # Obtain native CRS
-        crs = mostcommon_crs(dc=dc,
-                             product="ls8_sr",
-                             query={
-                                 "time": "2014",
-                                 "geopolygon": geopolygon
-                             })
+        crs = mostcommon_crs(dc=dc, product="ls8_sr", query={"time": "2014", "geopolygon": geopolygon})
 
         # Create query based on time range, area selected, custom params
         query = {
@@ -160,10 +153,7 @@ def run_filmstrip_app(
             "geopolygon": geopolygon,
             "output_crs": crs,
             "resolution": resolution,
-            "dask_chunks": {
-                "x": 3000,
-                "y": 3000
-            },
+            "dask_chunks": {"x": 3000, "y": 3000},
             "align": (resolution[1] / 2.0, resolution[1] / 2.0),
         }
 
@@ -182,36 +172,32 @@ def run_filmstrip_app(
         # dataset and drop any observations out side this range
         if tide_range != (0.0, 1.0):
             from deafrica_tools.coastal import tidal_tag
+
             ds = tidal_tag(ds=ds, tidepost_lat=None, tidepost_lon=None)
             min_tide, max_tide = ds.tide_height.quantile(tide_range).values
-            ds = ds.sel(time=(ds.tide_height >= min_tide) &
-                        (ds.tide_height <= max_tide))
+            ds = ds.sel(time=(ds.tide_height >= min_tide) & (ds.tide_height <= max_tide))
             ds = ds.drop("tide_height")
-            print(f"    Keeping {len(ds.time)} observations with tides "
-                  f"between {min_tide:.2f} and {max_tide:.2f} m")
+            print(f"    Keeping {len(ds.time)} observations with tides " f"between {min_tide:.2f} and {max_tide:.2f} m")
 
         # Create time step ranges to generate filmstrips from
-        bins_dt = pd.date_range(start=time_range[0],
-                                end=time_range[1],
-                                freq=pd.DateOffset(**time_step))
+        bins_dt = pd.date_range(start=time_range[0], end=time_range[1], freq=pd.DateOffset(**time_step))
 
         # Bin all satellite observations by timestep. If some observations
         # fall outside the upper bin, label these with the highest bin
         labels = bins_dt.astype("str")
-        time_steps = (pd.cut(ds.time.values, bins_dt,
-                             labels=labels[:-1]).add_categories(
-                                 labels[-1]).fillna(labels[-1]))
+        time_steps = pd.cut(ds.time.values, bins_dt, labels=labels[:-1]).add_categories(labels[-1]).fillna(labels[-1])
 
-        time_steps_var = xr.DataArray(time_steps, [("time", ds.time.values)],
-                                      name="timestep")
+        time_steps_var = xr.DataArray(time_steps, [("time", ds.time.values)], name="timestep")
 
         # Resample data temporally into time steps, and compute geomedians
-        ds_geomedian = (ds.groupby(time_steps_var).apply(
-            lambda ds_subset: geomedian_with_mads(
-                ds_subset, compute_mads=False, compute_count=False)))
+        ds_geomedian = ds.groupby(time_steps_var).apply(
+            lambda ds_subset: geomedian_with_mads(ds_subset, compute_mads=False, compute_count=False)
+        )
 
-        print("\nGenerating geomedian composites and plotting "
-              "filmstrips... (click the Dashboard link above for status)")
+        print(
+            "\nGenerating geomedian composites and plotting "
+            "filmstrips... (click the Dashboard link above for status)"
+        )
         ds_geomedian = ds_geomedian.compute()
 
         # Reset CRS that is lost during geomedian compositing
@@ -230,16 +216,12 @@ def run_filmstrip_app(
         # and aspect ratio
         n_obs = output_array.sizes["timestep"]
         ratio = output_array.sizes["x"] / output_array.sizes["y"]
-        fig, axes = plt.subplots(1,
-                                 n_obs + 1,
-                                 figsize=(5 * ratio * (n_obs + 1), 5))
+        fig, axes = plt.subplots(1, n_obs + 1, figsize=(5 * ratio * (n_obs + 1), 5))
         fig.subplots_adjust(wspace=0.05, hspace=0.05)
 
         # Add timesteps to the plot, set aspect to equal to preserve shape
         for i, ax_i in enumerate(axes.flatten()[:n_obs]):
-            output_array.isel(timestep=i).plot.imshow(ax=ax_i,
-                                                      vmin=percentiles[0],
-                                                      vmax=percentiles[1])
+            output_array.isel(timestep=i).plot.imshow(ax=ax_i, vmin=percentiles[0], vmax=percentiles[1])
             ax_i.get_xaxis().set_visible(False)
             ax_i.get_yaxis().set_visible(False)
             ax_i.set_aspect("equal")
@@ -248,11 +230,12 @@ def run_filmstrip_app(
         # by first taking the log of the array (so change in dark areas
         # can be identified), then computing standard deviation between
         # all timesteps
-        (np.log(output_array).std(dim=["timestep"]).mean(
-            dim="variable").plot.imshow(ax=axes.flatten()[-1],
-                                        robust=True,
-                                        cmap="magma",
-                                        add_colorbar=False))
+        (
+            np.log(output_array)
+            .std(dim=["timestep"])
+            .mean(dim="variable")
+            .plot.imshow(ax=axes.flatten()[-1], robust=True, cmap="magma", add_colorbar=False)
+        )
         axes.flatten()[-1].get_xaxis().set_visible(False)
         axes.flatten()[-1].get_yaxis().set_visible(False)
         axes.flatten()[-1].set_aspect("equal")

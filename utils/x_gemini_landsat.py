@@ -1,19 +1,13 @@
-
-#Create an AWS account and IAM user with appropriate permissions to access the Landsat STAC catalog. Alternatively, use existing credentials with sufficient access.
-#Set up environment variables to contain your AWS credentials securely:
-export AWS_ACCESS_KEY_ID="YOUR_ACCESS_KEY_ID"
-export AWS_SECRET_ACCESS_KEY="YOUR_SECRET_ACCESS_KEY"
-export AWS_DEFAULT_REGION="YOUR_REGION"  # Replace with your region (e.g., "us-east-1")
-
 import stackstac
 import xarray as xr
-import boto3
+import os
+import requests
 
 client = stackstac.Client(
     base_url="https://landsat-pds.s3.amazonaws.com/stac",
     aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.environ.get("AWS_DEFAULT_REGION")
+    region_name=os.environ.get("AWS_DEFAULT_REGION"),
 )
 
 collection = "LC08"
@@ -25,7 +19,7 @@ query = {
     "collection": collection,
     "bbox": bbox,
     "datetime": datetime,
-    "ids": None  # Optional: Filter by specific item IDs
+    "ids": None,  # Optional: Filter by specific item IDs
 }
 
 datacube = client.get_datacube(query=query)
@@ -56,4 +50,4 @@ for item in datacube.items():
 multiband_dataset = xr.combine_nested(datasets, concat="bands")
 
 output_path = "landsat_datacube.nc"
-multiband_dataset.to_netcdf(  XXXX  )
+# multiband_dataset.to_netcdf(  XXXX  )
