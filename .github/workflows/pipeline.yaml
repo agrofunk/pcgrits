@@ -15,5 +15,6 @@ jobs:
           python-version: "3.11"
       - name: Tests
         run: | 
+          pip install poetry
           poetry install
           poetry run pytest -n auto      
